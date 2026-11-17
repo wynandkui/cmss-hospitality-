@@ -6,7 +6,7 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 | ID | Area | Required acceptance test | Status | Evidence |
 |---|---|---|---|---|
 | T-001 | Baseline | Existing `npm test` passes | PASS | User-run `npm test`, 2026-11-17: 51 passed, 0 failed, 1.356547056 s; development branch |
-| T-002 | Build | `npm run build` succeeds | NOT RUN | — |
+| T-002 | Build | `npm run build` succeeds | PASS | User-run `npm run build`, 2026-11-17: `Static site prepared in dist/ (no external build dependencies).` |
 | T-010 | Roles | Role matrix grants only intended capabilities | PASS | User-run `npm test`, 2026-11-17: role-policy unit tests passed; API integration NOT tested |
 | T-011 | Migration | Existing admin/technician credentials survive role migration | NOT RUN | — |
 | T-012 | Sessions | Disabled account and role change revoke existing sessions | NOT RUN | — |
@@ -28,7 +28,8 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 | Date | Commit | Environment | Command/scenario | Result | Notes |
 |---|---|---|---|---|---|
 | 2026-11-17 | develop/v1.2-rbac-production-readiness (user checkout) | Lenovo Linux Mint, Node test runner | `npm test` | PASS | 51 tests; 51 passed; 0 failed; 0 skipped; duration 1356.547056 ms. User supplied terminal output. Exact local HEAD SHA not supplied. |
-| 2026-11-17 | — | — | `npm run build`, MariaDB migration, role/API tests | NOT RUN | Do not infer success from unit tests. |
+| 2026-11-17 | develop/v1.2-rbac-production-readiness | Lenovo Linux Mint | `npm run build` | PASS | `Static site prepared in dist/ (no external build dependencies).` User supplied terminal output. |
+| 2026-11-17 | — | — | MariaDB migration and role/API tests | NOT RUN | Not covered by build or unit tests. |
 
 ## Next
 Audit current route authorization and implement tested role policy without changing main.
