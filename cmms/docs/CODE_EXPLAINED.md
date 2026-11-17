@@ -38,3 +38,6 @@ Every successful implementation change must explain the altered functions, secur
 
 ### v1.2 technician-only read endpoint (staged)
 `server/api.js` now exposes authenticated `GET /api/my/work-orders` exclusively for `technician` sessions. It invokes `projectStateForSession` and returns assigned work orders, relevant assets/locations, and limited employee data, not the full state snapshot. Other roles receive HTTP 403. The existing `/api/state` GET and PUT remain unchanged to avoid breaking the legacy full-state client; **this new endpoint is not yet used by the UI and does not fix the legacy GET data-exposure risk**. API integration/security tests pending; do not mark server-side RBAC production-ready.
+
+### v1.2 technician state merge (staged, not yet connected)
+`src/state-projection.js` now exports `mergeTechnicianState(original, submitted, session)`. It reconstructs the server's complete state from the original database snapshot, updates only permitted fields on work orders assigned to the logged-in technician, and preserves all hidden work orders, modules and settings. It rejects changed assignment fields, missing/foreign/duplicate work orders, and sessions without a linked technician. Four new unit tests were added; execution is pending. `/api/state` is unchanged until integration and regression testing.
