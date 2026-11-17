@@ -43,3 +43,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | Local SQL backup | MariaDB isolated database `CMMS_v12_restore_test` | Import sanitized SQL backup | PASS (IMPORT) | User confirmed RESTORE SUCCESSFUL and 12 restored tables. Account content and full recovery verification pending. Original `CMMS_putterdb` not targeted. |
 
 | 2026-11-17 | Local SQL backup | MariaDB isolated database `CMMS_v12_restore_test` | Verify restored `cmms_users` counts and password hashes | PASS | 1 admin and 4 technicians, all 5 with nonempty password hashes; `person_id IS NOT NULL` for all 5 (not proof links resolve). Original database not targeted. |
+
+| 2026-11-17 | Isolated restored backup | MariaDB `CMMS_v12_restore_test` | Expand role ENUM to six roles | PASS (ISOLATED) | ALTER TABLE succeeded; role ENUM lists admin, manager, supervisor, coordinator, finance_admin, technician; NOT NULL; 1 admin and 4 technician accounts preserved. Working DB not modified. |
