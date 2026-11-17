@@ -67,3 +67,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | technician `PUT /api/state` with revision -1 | PASS | HTTP 409 and expected stale-revision message; request rejected before persistence. Successful PUT preservation still NOT RUN. |
 
 | 2026-11-17 | isolated CMMS port 3003, `CMMS_v12_restore_test` | Lenovo Linux Mint | technician unchanged-state `PUT /api/state` | PASS | HTTP 200, no API error, full JSON state before/after identical; 1/1 work orders, employees, settings and financial records preserved. Actual field update and cross-technician isolation NOT RUN. |
+
+| 2026-11-17 | isolated CMMS port 3003, `CMMS_v12_restore_test` | Lenovo Linux Mint | technician actual completionNotes update and restoration, Steps 100–101 | PASS | Authenticated technician saved test marker HTTP 200 revision 11; GET verified marker persisted; restoration PUT HTTP 200 revision 12; subsequent GET verified original empty note restored. Cross-technician isolation NOT RUN. |
