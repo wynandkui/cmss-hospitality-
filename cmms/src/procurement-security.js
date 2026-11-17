@@ -1,0 +1,19 @@
+export const CAPABILITIES=['requestStores','requestPurchase','approveSupervisor','approveManager','issueStores','receivePurchase','manageVendors','viewFinance','manageAudit'];
+export const AUDIT_CATEGORIES=['workOrders','assets','stores','purchasing','vendors','users','media','finance','settings'];
+export const DEFAULT_AUDIT=Object.fromEntries(AUDIT_CATEGORIES.map(x=>[x,true]));
+export const CAPABILITY_LABELS={requestStores:'Request from stores',requestPurchase:'Create purchase orders',approveSupervisor:'Supervisor approval',approveManager:'Manager approval',issueStores:'Issue stock',receivePurchase:'Receive purchased goods',manageVendors:'Manage vendors',viewFinance:'View finances',manageAudit:'View audit trail'};
+export function normalizePermissions(value){return Object.fromEntries(CAPABILITIES.map(key=>[key,value?.[key]===true]));}
+export function hasCapability(session,cap){return session?.role==='admin'||session?.permissions?.[cap]===true;}
+export function assertCapability(session,cap){if(!hasCapability(session,cap))throw Object.assign(Error('Permission required: '+cap),{status:403});}
+export function assertTransition(record,action,actor,permissions,hasQuotation=false){
+ if(!record||!actor?.userId)throw Object.assign(Error('Record or login missing'),{status:400});
+ const po=record.kind==='po',status=record.status||'Draft';
+ const deny=(message,status=409)=>{throw Object.assign(Error(message),{status});};
+ if(action==='submit'){if(!['Draft','Rejected'].includes(status))deny('Only drafts or rejected records can be submitted');if(!permissions.requestStores&&!po)deny('Stores requester permission required',403);if(po&&!permissions.requestPurchase)deny('Purchase requester permission required',403);return {status:'Submitted',requesterId:actor.userId,supervisorApproval:null,managerApproval:null};}
+ if(action==='supervisorApprove'){if(status!=='Submitted')deny('Supervisor approval must be first');if(!permissions.approveSupervisor)deny('Supervisor permission required',403);if(record.requesterId===actor.userId)deny('Requester cannot approve',403);return {status:'Supervisor approved',supervisorApproval:{userId:actor.userId,username:actor.username,at:new Date().toISOString()}};}
+ if(action==='managerApprove'){if(status!=='Supervisor approved')deny('Supervisor approval required first');if(!permissions.approveManager)deny('Manager permission required',403);if([record.requesterId,record.supervisorApproval?.userId].includes(actor.userId))deny('Approver must be independent',403);if(po&&!hasQuotation)deny('At least one quotation is required before PO approval');return {status:'Approved',managerApproval:{userId:actor.userId,username:actor.username,at:new Date().toISOString()}};}
+ if(action==='reject'){if(!['Submitted','Supervisor approved'].includes(status))deny('Only pending approvals may be rejected');if(!permissions.approveSupervisor&&!permissions.approveManager)deny('Approver permission required',403);if(record.requesterId===actor.userId)deny('Requester cannot reject own request',403);return {status:'Rejected'};}
+ if(action==='issue'){if(po||status!=='Approved')deny('Both approvals required before stock issue');if(!permissions.issueStores)deny('Storeman permission required',403);if([record.requesterId,record.supervisorApproval?.userId,record.managerApproval?.userId].includes(actor.userId))deny('Storeman must be independent',403);return {status:'Issued',issuedById:actor.userId,issuedByName:actor.username,issuedAt:new Date().toISOString()};}
+ if(action==='receive'){if(!po||status!=='Approved')deny('Both approvals required before receipt');if(!permissions.receivePurchase)deny('Goods receiving permission required',403);return {status:'Received',receivedById:actor.userId,receivedAt:new Date().toISOString()};}
+ deny('Unsupported workflow action',400);
+}
