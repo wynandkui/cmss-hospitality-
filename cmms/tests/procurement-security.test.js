@@ -1,0 +1,15 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {assertTransition,normalizePermissions} from '../src/procurement-security.js';
+const actor=(userId,username=userId)=>({userId,username});
+const all=Object.fromEntries(['requestStores','requestPurchase','approveSupervisor','approveManager','issueStores','receivePurchase'].map(x=>[x,true]));
+const draft={id:'r1',kind:'requisition',status:'Draft'};
+test('new technicians have no procurement permissions',()=>assert.ok(Object.values(normalizePermissions({})).every(v=>v===false)));
+test('only requester capability can submit',()=>assert.throws(()=>assertTransition(draft,'submit',actor('requester'),{},false),/permission/i));
+test('cannot approve before submission',()=>assert.throws(()=>assertTransition(draft,'supervisorApprove',actor('supervisor'),all),/first/));
+test('requester cannot approve own request',()=>assert.throws(()=>assertTransition({...draft,status:'Submitted',requesterId:'requester'},'supervisorApprove',actor('requester'),all),/Requester/));
+test('supervisor and manager must be independent',()=>assert.throws(()=>assertTransition({...draft,status:'Supervisor approved',requesterId:'r',supervisorApproval:{userId:'s'}},'managerApprove',actor('s'),all),/independent/));
+test('PO manager approval requires quotation',()=>assert.throws(()=>assertTransition({...draft,kind:'po',status:'Supervisor approved',requesterId:'r',supervisorApproval:{userId:'s'}},'managerApprove',actor('m'),all,false),/quotation/));
+test('approved requisition cannot be issued by requester',()=>assert.throws(()=>assertTransition({...draft,status:'Approved',requesterId:'r',supervisorApproval:{userId:'s'},managerApproval:{userId:'m'}},'issue',actor('r'),all),/independent/));
+test('issue requires both approvals',()=>assert.throws(()=>assertTransition({...draft,status:'Submitted'},'issue',actor('storeman'),all),/approvals/));
+test('approved requisition issues exactly once',()=>{const r={...draft,status:'Approved',requesterId:'r',supervisorApproval:{userId:'s'},managerApproval:{userId:'m'}};const change=assertTransition(r,'issue',actor('storeman'),all);assert.equal(change.status,'Issued');assert.throws(()=>assertTransition({...r,...change},'issue',actor('storeman'),all));});
+test('PO cannot be received before manager approval',()=>assert.throws(()=>assertTransition({...draft,kind:'po',status:'Supervisor approved'},'receive',actor('receiver'),all),/approvals/));
