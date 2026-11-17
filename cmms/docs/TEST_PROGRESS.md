@@ -75,3 +75,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | isolated `CMMS_v12_restore_test` | Lenovo Linux Mint | Step 108 second-owner test fixture | PASS (fixture only) | Added temporary WO-V12-ISOLATION-TEST assigned to anthony; existing WO-2026-XTEZK remains assigned to david; total 2 WOs, revision 15. Cross-technician read/write authorization NOT RUN. |
 
 | 2026-11-17 | isolated CMMS port 3003, `CMMS_v12_restore_test` | Lenovo Linux Mint | Step 109 technician cross-account read isolation | PASS | Authenticated david: GET `/api/state` and GET `/api/my/work-orders` both HTTP 200; each returned only WO-2026-XTEZK, excluded anthony's WO-V12-ISOLATION-TEST. Cross-account write denial NOT RUN. |
+
+| 2026-11-17 | isolated CMMS port 3003, `CMMS_v12_restore_test` | Lenovo Linux Mint | Step 110 forged unassigned WO write rejection | PASS | Authenticated david submitted extra forged work order via PUT `/api/state`: HTTP 403 `Work order scope mismatch`; complete JSON database state unchanged; 2 WOs preserved. This is a forged-ID rejection, NOT a test using anthony's actual WO ID. |
