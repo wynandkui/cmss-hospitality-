@@ -45,3 +45,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | Local SQL backup | MariaDB isolated database `CMMS_v12_restore_test` | Verify restored `cmms_users` counts and password hashes | PASS | 1 admin and 4 technicians, all 5 with nonempty password hashes; `person_id IS NOT NULL` for all 5 (not proof links resolve). Original database not targeted. |
 
 | 2026-11-17 | Isolated restored backup | MariaDB `CMMS_v12_restore_test` | Expand role ENUM to six roles | PASS (ISOLATED) | ALTER TABLE succeeded; role ENUM lists admin, manager, supervisor, coordinator, finance_admin, technician; NOT NULL; 1 admin and 4 technician accounts preserved. Working DB not modified. |
+
+| 2026-11-17 | Local working database | MariaDB `CMMS_putterdb` | `node tools/migrate-roles.js --apply` | PASS (SCHEMA) | changed=true; needed before=true, after=false; 1 admin and 4 technician accounts before and after. Application RBAC enforcement NOT YET IMPLEMENTED. |
