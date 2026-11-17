@@ -61,3 +61,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | 94cb684 checkout | Lenovo Linux Mint | `node --test tests/state-projection.test.js` | PASS | 9/9 tests passed, 0 failures (146.692379 ms). Merge logic remains staged; API integration NOT RUN. |
 
 | 2026-11-17 | e9fdcc4 checkout | Lenovo Linux Mint | `node --test tests/state-projection.test.js`; `node --check server/api.js` | PASS | 10/10 security unit tests passed, 0 failures (161.015102 ms); syntax check produced no errors. Live integrated API test NOT RUN. |
+
+| 2026-11-17 | live local server port 3002 after restart | Lenovo Linux Mint | authenticated technician `GET /api/state` | PASS (limited scope) | Existing technician `david` logged in; no API error, 1 assigned WO, 1 employee, 0 audit records; settings keys `facility` only. Multi-technician isolation and transactional PUT preservation not yet live-tested. |
