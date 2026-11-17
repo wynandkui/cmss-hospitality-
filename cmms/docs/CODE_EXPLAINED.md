@@ -32,3 +32,6 @@ Hiding a button is usability, not security. A server route must reject unauthori
 
 ## Documentation rule
 Every successful implementation change must explain the altered functions, security implications, migration impact and test evidence here before merge.
+
+### v1.2 read-projection foundation (staged; not wired to API)
+`src/state-projection.js` introduces `projectStateForSession`, which returns a filtered snapshot for technician sessions (only assigned work orders, referenced assets, minimal employee record; excludes procurement/finance and other modules). Administrator receives the original content as a copy. Other roles are deliberately denied until their projections are designed. `tests/state-projection.test.js` checks privacy, ownership, unknown roles, and non-mutation. **Important:** This is not yet integrated with `/api/state`; changing GET alone would break the legacy full-snapshot PUT contract. A coordinated read/write API change and live integration tests are required before enforcement is claimed. Tests not yet run.
