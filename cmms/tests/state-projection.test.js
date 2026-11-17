@@ -31,3 +31,10 @@ test('technician merge rejects unlinked accounts and nontechnician roles',()=>{
  assert.throws(()=>mergeTechnicianState(source,{workOrders:[]},{role:'technician'}),{status:403});
  assert.throws(()=>mergeTechnicianState(source,{workOrders:[]},{role:'manager',personId:'p1'}),{status:403});
 });
+
+test('technician state excludes audit history and private settings',()=>{
+ const original={...source,audit:[{event:'secret'}],settings:{facility:'Resort',bankAccount:'secret'}};
+ const p=projectStateForSession(original,{role:'technician',personId:'p1'});
+ assert.deepEqual(p.audit,[]);
+ assert.deepEqual(p.settings,{facility:'Resort'});
+});
