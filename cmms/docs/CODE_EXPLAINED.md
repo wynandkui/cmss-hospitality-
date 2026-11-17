@@ -26,6 +26,7 @@ Hiding a button is usability, not security. A server route must reject unauthori
 ## Change history
 | Date | Area | Explanation | Test evidence |
 |---|---|---|---|
+| 2026-11-17 | Role policy foundation | `src/role-policy.js` declares six roles and fail-closed action/ownership checks; not yet wired into API, no migration or live access change | Unit tests committed; execution pending |
 | 2026-11-17 | v1.2 planning | Isolated development branch, acceptance register and release gates introduced | Not yet executed |
 
 ## Documentation rule
