@@ -41,3 +41,5 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 Audit current route authorization and implement tested role policy without changing main.
 
 | 2026-11-17 | Local SQL backup | MariaDB isolated database `CMMS_v12_restore_test` | Import sanitized SQL backup | PASS (IMPORT) | User confirmed RESTORE SUCCESSFUL and 12 restored tables. Account content and full recovery verification pending. Original `CMMS_putterdb` not targeted. |
+
+| 2026-11-17 | Local SQL backup | MariaDB isolated database `CMMS_v12_restore_test` | Verify restored `cmms_users` counts and password hashes | PASS | 1 admin and 4 technicians, all 5 with nonempty password hashes; `person_id IS NOT NULL` for all 5 (not proof links resolve). Original database not targeted. |
