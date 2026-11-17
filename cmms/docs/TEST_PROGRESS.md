@@ -5,9 +5,9 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 
 | ID | Area | Required acceptance test | Status | Evidence |
 |---|---|---|---|---|
-| T-001 | Baseline | Existing `npm test` passes | NOT RUN | — |
+| T-001 | Baseline | Existing `npm test` passes | PASS | User-run `npm test`, 2026-11-17: 51 passed, 0 failed, 1.356547056 s; development branch |
 | T-002 | Build | `npm run build` succeeds | NOT RUN | — |
-| T-010 | Roles | Role matrix grants only intended capabilities | NOT RUN | `tests/role-policy.test.js` committed; execution pending |
+| T-010 | Roles | Role matrix grants only intended capabilities | PASS | User-run `npm test`, 2026-11-17: role-policy unit tests passed; API integration NOT tested |
 | T-011 | Migration | Existing admin/technician credentials survive role migration | NOT RUN | — |
 | T-012 | Sessions | Disabled account and role change revoke existing sessions | NOT RUN | — |
 | T-013 | Users | Only administrator can create/assign roles/reset credentials | NOT RUN | — |
@@ -27,7 +27,8 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 ## Execution log
 | Date | Commit | Environment | Command/scenario | Result | Notes |
 |---|---|---|---|---|---|
-| 2026-11-17 | Pending | GitHub development branch | Initial plan and register created | NOT RUN | No execution evidence yet |
+| 2026-11-17 | develop/v1.2-rbac-production-readiness (user checkout) | Lenovo Linux Mint, Node test runner | `npm test` | PASS | 51 tests; 51 passed; 0 failed; 0 skipped; duration 1356.547056 ms. User supplied terminal output. Exact local HEAD SHA not supplied. |
+| 2026-11-17 | — | — | `npm run build`, MariaDB migration, role/API tests | NOT RUN | Do not infer success from unit tests. |
 
 ## Next
 Audit current route authorization and implement tested role policy without changing main.
