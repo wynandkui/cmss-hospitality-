@@ -1,0 +1,33 @@
+# CMMS v1.2 — Test progress register
+Updated: 2026-11-17. Branch: `develop/v1.2-rbac-production-readiness`.
+
+Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is not a passed test.
+
+| ID | Area | Required acceptance test | Status | Evidence |
+|---|---|---|---|---|
+| T-001 | Baseline | Existing `npm test` passes | NOT RUN | — |
+| T-002 | Build | `npm run build` succeeds | NOT RUN | — |
+| T-010 | Roles | Role matrix grants only intended capabilities | NOT RUN | — |
+| T-011 | Migration | Existing admin/technician credentials survive role migration | NOT RUN | — |
+| T-012 | Sessions | Disabled account and role change revoke existing sessions | NOT RUN | — |
+| T-013 | Users | Only administrator can create/assign roles/reset credentials | NOT RUN | — |
+| T-020 | Work orders | Manager creates WO; Supervisor assigns WO | NOT RUN | — |
+| T-021 | Technician | Technician can update own assigned WO only | NOT RUN | — |
+| T-022 | Technician | Technician cannot enumerate other workers' WO or private people data | NOT RUN | — |
+| T-023 | Reporting | Technician prints only own completion/status reports | NOT RUN | — |
+| T-030 | PM | Coordinator creates/edits PM schedule; technician cannot | NOT RUN | — |
+| T-040 | Purchasing | Manager creates PO; approvals enforce separation of duties | NOT RUN | — |
+| T-050 | Finance | Finance Admin can use all financial endpoints; others denied | NOT RUN | — |
+| T-051 | Supplier | Supplier statement prints company/vendor details correctly | NOT RUN | — |
+| T-060 | Demo | Isolated fixture covers assets, locations, people, WO, PM, inventory, purchasing, finance | NOT RUN | — |
+| T-070 | Security | Direct unauthorized API calls return 403, not only hidden UI | NOT RUN | — |
+| T-080 | Recovery | Backup/restore and migration rollback rehearsal | NOT RUN | — |
+| T-090 | UAT | Product owner signs off each role workflow | NOT RUN | — |
+
+## Execution log
+| Date | Commit | Environment | Command/scenario | Result | Notes |
+|---|---|---|---|---|---|
+| 2026-11-17 | Pending | GitHub development branch | Initial plan and register created | NOT RUN | No execution evidence yet |
+
+## Next
+Audit current route authorization and implement tested role policy without changing main.
