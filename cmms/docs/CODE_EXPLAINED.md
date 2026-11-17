@@ -26,6 +26,7 @@ Hiding a button is usability, not security. A server route must reject unauthori
 ## Change history
 | Date | Area | Explanation | Test evidence |
 |---|---|---|---|
+| 2026-11-17 | Role migration (not applied) | `server/role-migration.js` inspects the legacy enum and expands allowed roles without dropping user records; `tools/migrate-roles.js` defaults to dry-run and requires `--apply` for DDL. MariaDB ALTER TABLE is not generally transaction-rollback safe; take a verified backup before applying. | Tests committed, not executed |
 | 2026-11-17 | Role policy foundation | `src/role-policy.js` declares six roles and fail-closed action/ownership checks; not yet wired into API, no migration or live access change | Unit tests committed; execution pending |
 | 2026-11-17 | v1.2 planning | Isolated development branch, acceptance register and release gates introduced | Not yet executed |
 
