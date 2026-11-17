@@ -6,3 +6,5 @@ dist/
 .env
 media/
 node_modules/
+# Sensitive local database exports: never commit to Git
+backups/
