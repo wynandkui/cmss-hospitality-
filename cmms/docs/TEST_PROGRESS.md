@@ -8,7 +8,7 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 | T-001 | Baseline | Existing `npm test` passes | PASS | User-run `npm test`, 2026-11-17: 51 passed, 0 failed, 1.356547056 s; development branch |
 | T-002 | Build | `npm run build` succeeds | PASS | User-run `npm run build`, 2026-11-17: `Static site prepared in dist/ (no external build dependencies).` |
 | T-010 | Roles | Role matrix grants only intended capabilities | PASS | User-run `npm test`, 2026-11-17: role-policy unit tests passed; API integration NOT tested |
-| T-011 | Migration | Existing admin/technician credentials survive role migration | NOT RUN | — |
+| T-011 | Migration | Existing admin/technician credentials survive role migration | NOT RUN | Read-only schema inspection: 1 admin, 4 technicians; migration scripts/tests committed, not applied |
 | T-012 | Sessions | Disabled account and role change revoke existing sessions | NOT RUN | — |
 | T-013 | Users | Only administrator can create/assign roles/reset credentials | NOT RUN | — |
 | T-020 | Work orders | Manager creates WO; Supervisor assigns WO | NOT RUN | — |
