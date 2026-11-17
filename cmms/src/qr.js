@@ -1,4 +1,5 @@
 import qrcode from './vendor/qrcode.mjs';
+qrcode.stringToBytes=text=>Array.from(new TextEncoder().encode(text));
 
 // QR payloads contain the record details directly; scanning needs no network connection.
 // Never include account credentials, database settings, employee DOB or private contact data.
