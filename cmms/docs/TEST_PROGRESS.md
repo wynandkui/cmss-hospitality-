@@ -55,3 +55,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | unauthenticated `GET /api/my/work-orders` after restart | PASS | HTTP 401, `Login required`, `REQUEST_REJECTED`. Authenticated technician and other-role tests NOT RUN. |
 
 | 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | technician login and `GET /api/my/work-orders` | PASS (single-user positive case) | Existing `david` technician authenticated; HTTP 200; one assigned WO (`WO-2026-XTEZK`) matches session personId; empty assets/locations, limited people profile. Cross-technician isolation and legacy `/api/state` bypass NOT RUN. |
+
+| 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | technician `GET /api/state` count-only inspection | INCONCLUSIVE / SECURITY GAP OPEN | HTTP response revision 9: 1 WO, 1 person, 0 assets/PO/cost entries. These counts do not prove ownership filtering; legacy endpoint remains unrestricted in source. |
