@@ -53,3 +53,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | 12c326a checkout | Lenovo Linux Mint | `npm test`, `node --check server/api.js`, `npm run build` | PASS | 61/61 tests, 0 failed (1658.439282 ms); server syntax check passed; static site built. Authenticated API endpoint not yet tested. |
 
 | 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | unauthenticated `GET /api/my/work-orders` after restart | PASS | HTTP 401, `Login required`, `REQUEST_REJECTED`. Authenticated technician and other-role tests NOT RUN. |
+
+| 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | technician login and `GET /api/my/work-orders` | PASS (single-user positive case) | Existing `david` technician authenticated; HTTP 200; one assigned WO (`WO-2026-XTEZK`) matches session personId; empty assets/locations, limited people profile. Cross-technician isolation and legacy `/api/state` bypass NOT RUN. |
