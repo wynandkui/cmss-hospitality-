@@ -290,3 +290,63 @@ For South African facilities, verify current applicable requirements under the O
 ---
 
 **Document control:** Owner — Facility Engineering Management. Review the manual whenever the application changes. Record new revision dates and train affected users before introducing new workflows.
+
+---
+
+# Version 1.1 — MariaDB, technician accounts and document media
+
+## 31. Operating modes
+
+The original Puter.js single-account application remains available with `npm run dev` at `http://localhost:5173`. It does **not** use MariaDB and does **not** support shared technician login or media uploads.
+
+The new **MariaDB shared-server mode** runs with `npm run server` and opens at `http://localhost:3001`. Use this address for all registered users. Do not operate the two modes simultaneously with the expectation that records will synchronize: they are **separate data stores**. The MariaDB server is a Node.js process; the browser never connects directly to port 3306.
+
+## 32. Install MariaDB and configure database
+
+Install MariaDB Server and Node.js 20+ on a trusted machine. In the MariaDB administration console, create a database and an application user (replace the example password):
+
+```sql
+CREATE DATABASE cmms CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'cmms_app'@'localhost' IDENTIFIED BY 'REPLACE_WITH_A_STRONG_UNIQUE_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, INDEX, ALTER ON cmms.* TO 'cmms_app'@'localhost';
+```
+
+The server creates `cmms_users`, `cmms_state`, and `cmms_files` automatically on first connection. It does not create the database itself. Use a dedicated least-privilege account; never use MariaDB root for the application. If MariaDB is on a different machine, adjust the host in the SQL grant and `.env` to match your actual topology, firewall and TLS requirements.
+
+From the `cmms` folder:
+
+```bash
+cp .env.example .env
+chmod 600 .env
+nano .env
+npm install
+npm run server
+```
+
+Edit `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `CMMS_SETUP_TOKEN` and `CMMS_MEDIA_DIR` in `.env`. Generate the setup token with `openssl rand -hex 32`. Keep the `.env` file outside source control and never publish its contents. If the database is unavailable, the setup screen shows the connection problem without displaying credentials. A server restart is required after editing `.env`.
+
+## 33. First administrator and technician registration
+
+Open `http://localhost:3001`. When the database is connected but no accounts exist, the first-use page asks for the server setup token, an administrator username and a password of at least 12 characters. Once initialized, this bootstrap endpoint is closed.
+
+Sign in as the administrator. Create individual technician records under **Teams** (People & Teams), then go to **Technicians** to register their usernames, passwords and linked person records. Choose the `technician` role for ordinary maintenance personnel. Their assigned work orders must reference the same person ID. The `admin` role has full management privileges. Do not share administrator accounts. Passwords are stored as salted scrypt hashes. The server uses HttpOnly, SameSite cookies and eight-hour in-memory sessions. Restarting the server logs everyone out. Administrators can create accounts; existing password reset is not included in this release.
+
+## 34. Asset and compliance media
+
+Open **Media library**, select **Assets** or **Compliance**, and choose the existing record. Upload a PDF, PNG, JPEG, WebP or TXT document (default maximum 15 MB). Documents are stored as opaque UUID filenames under `CMMS_MEDIA_DIR`, while original names and record relationships are stored in MariaDB. They are not served as public static files. A signed-in user can download; only administrators can upload and delete. Do not upload executables, confidential personal records, or files that have not been checked under your organization's information security policy. File type restrictions are based on declared MIME type, not antivirus or deep content scanning.
+
+## 35. Technician performance reports
+
+Open **Reports** and use the new Technician performance filters: **Technician**, **Date basis**, **From**, **To**. **Completed** filters by completion date and includes only completed orders; **Assigned / created** filters by the work-order creation date and includes both open and completed orders. The table groups matching work orders by assigned person, showing total orders, completed, open, preventive, corrective, labour hours and material costs. **Export filtered orders CSV** downloads the matching source records. Note that assigned date currently uses the work-order creation timestamp because a dedicated assignment-change history is not yet captured.
+
+## 36. Backups, permissions and concurrency
+
+Back up **both** MariaDB and `CMMS_MEDIA_DIR` at the same point in time. A JSON backup exported from Settings contains the CMMS record state, not uploaded file bytes or registered users. The shared database uses a version number; if another user has saved a newer revision, an outdated save is rejected rather than silently overwriting it. The user must reload and reconcile changes. Avoid multiple simultaneous browser tabs editing the same facility.
+
+Technicians are server-restricted to progress fields on their own assigned work orders. Administrators manage records, schedules, users and uploads. All access to the API requires a login except system status and first-time bootstrap/login. This is a small-team shared application, not a fully normalized enterprise CMMS or a substitute for approved safety permits, statutory certificates or electronic signatures.
+
+## 37. Production deployment and limitations
+
+Keep MariaDB and the Node server on a trusted network. The default Node server binds to `127.0.0.1:3001` for local testing. For LAN deployment, configure `CMMS_BIND` appropriately, restrict access with firewall rules and place the server behind a properly configured HTTPS reverse proxy. Set `CMMS_HTTPS=true` only when HTTPS is actually in use. Never expose the unencrypted HTTP service to the public Internet. Configure monitoring, daily database/media backups, restore tests, and operating-system security updates.
+
+The MariaDB driver `mysql2` must be installed using `npm install` when npm registry access is available. The codebase's automated unit tests cover the reporting filters and existing PM logic; **live MariaDB integration, file upload and multi-user browser flows must still be tested on your own server**. No automatic data migration from Puter KV to MariaDB is performed. Export the original Puter JSON backup and restore it through the MariaDB administrator session after checking that no existing shared records will be overwritten.

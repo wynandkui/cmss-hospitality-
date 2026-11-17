@@ -1,0 +1,4 @@
+import {test} from 'node:test';import {strict as assert} from 'node:assert';import {technicianStats} from '../src/technician-reports.js';
+const s={people:[{id:'a',name:'Electrical'},{id:'b',name:'Mechanical'}],workOrders:[{id:'1',assigneeId:'a',status:'Completed',type:'Preventive',createdAt:'2026-11-01',completedAt:'2026-11-10',laborHours:2,materialCost:15},{id:'2',assigneeId:'a',status:'Open',type:'Corrective',createdAt:'2026-11-12'},{id:'3',assigneeId:'b',status:'Completed',type:'Corrective',createdAt:'2026-11-02',completedAt:'2026-11-14',laborHours:3}]};
+test('completed-date filters isolate technician work',()=>{const r=technicianStats(s,{personId:'a',from:'2026-11-10',to:'2026-11-11'});assert.equal(r.orders.length,1);assert.equal(r.rows[0].hours,2);});
+test('assigned-date filters include open work',()=>{const r=technicianStats(s,{personId:'a',basis:'assigned'});assert.equal(r.orders.length,2);assert.equal(r.rows[0].open,1);});
