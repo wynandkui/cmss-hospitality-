@@ -15,6 +15,8 @@ export function projectStateForSession(source,session){
   state.locations=(state.locations||[]).filter(l=>locationIds.has(l.id));
   state.people=(state.people||[]).filter(p=>p.id===session.personId).map(p=>({id:p.id,name:p.name,trade:p.trade,jobTitle:p.jobTitle}));
   for(const key of ['vendors','requisitions','purchaseOrders','costEntries','parts','inspections','readings','plans'])state[key]=[];
+  state.audit=[];
+  state.settings={facility:String(state.settings?.facility||'')};
   return state;
  }
  // New roles are denied state snapshot access until explicit per-role projections are implemented.
