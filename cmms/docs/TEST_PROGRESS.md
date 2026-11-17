@@ -57,3 +57,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | technician login and `GET /api/my/work-orders` | PASS (single-user positive case) | Existing `david` technician authenticated; HTTP 200; one assigned WO (`WO-2026-XTEZK`) matches session personId; empty assets/locations, limited people profile. Cross-technician isolation and legacy `/api/state` bypass NOT RUN. |
 
 | 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | technician `GET /api/state` count-only inspection | INCONCLUSIVE / SECURITY GAP OPEN | HTTP response revision 9: 1 WO, 1 person, 0 assets/PO/cost entries. These counts do not prove ownership filtering; legacy endpoint remains unrestricted in source. |
+
+| 2026-11-17 | 94cb684 checkout | Lenovo Linux Mint | `node --test tests/state-projection.test.js` | PASS | 9/9 tests passed, 0 failures (146.692379 ms). Merge logic remains staged; API integration NOT RUN. |
