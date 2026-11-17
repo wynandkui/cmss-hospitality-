@@ -36,3 +36,18 @@ Puter KV storage is **per signed-in user**; this is a **single-account CMMS**, n
 See [USER_MANUAL.md](USER_MANUAL.md) for full operating procedures, deployment, limitations and troubleshooting.
 
 Powered by [Puter](https://developer.puter.com).
+
+## Version 1.1 — MariaDB shared mode
+
+A separate Node.js MariaDB backend now supports registered administrator/technician logins, a private media directory for asset and compliance files, and technician-filtered reporting. See [manual sections 31–37](USER_MANUAL.md) and [server notes](server/README.md).
+
+```bash
+cp .env.example .env
+chmod 600 .env
+# Configure MariaDB credentials and setup token in .env
+npm install
+npm run server
+# Open http://localhost:3001
+```
+
+`npm run dev` continues to start the original single-account Puter.js mode at port 5173. The two storage modes do not synchronize. Never commit `.env` or the `media/` folder.

@@ -1,6 +1,6 @@
 {
   "name": "cmms",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Hospitality Facility CMMS powered by Puter.js",
@@ -9,7 +9,13 @@
     "build": "node tools/build.js",
     "preview": "node tools/serve.js dist",
     "test": "node --test tests/*.test.js",
-    "check": "npm run test && npm run build"
+    "check": "npm run test && npm run build",
+    "server": "node server/api.js"
   },
-  "engines": {"node": ">=20"}
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "mysql2": "^3.15.0"
+  }
 }
