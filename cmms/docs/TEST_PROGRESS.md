@@ -63,3 +63,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | e9fdcc4 checkout | Lenovo Linux Mint | `node --test tests/state-projection.test.js`; `node --check server/api.js` | PASS | 10/10 security unit tests passed, 0 failures (161.015102 ms); syntax check produced no errors. Live integrated API test NOT RUN. |
 
 | 2026-11-17 | live local server port 3002 after restart | Lenovo Linux Mint | authenticated technician `GET /api/state` | PASS (limited scope) | Existing technician `david` logged in; no API error, 1 assigned WO, 1 employee, 0 audit records; settings keys `facility` only. Multi-technician isolation and transactional PUT preservation not yet live-tested. |
+
+| 2026-11-17 | live local server port 3002 | Lenovo Linux Mint | technician `PUT /api/state` with revision -1 | PASS | HTTP 409 and expected stale-revision message; request rejected before persistence. Successful PUT preservation still NOT RUN. |
