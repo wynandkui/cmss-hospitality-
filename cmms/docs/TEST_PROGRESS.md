@@ -49,3 +49,5 @@ Audit current route authorization and implement tested role policy without chang
 | 2026-11-17 | Local working database | MariaDB `CMMS_putterdb` | `node tools/migrate-roles.js --apply` | PASS (SCHEMA) | changed=true; needed before=true, after=false; 1 admin and 4 technician accounts before and after. Application RBAC enforcement NOT YET IMPLEMENTED. |
 
 | 2026-11-17 | a5398d5 checkout | Lenovo Linux Mint | `npm test` and `npm run build` | PASS | 61/61 tests passed, 0 failures (1615.529071 ms); static site prepared in dist/. State projection tests are unit-only; API integration NOT RUN. |
+
+| 2026-11-17 | 12c326a checkout | Lenovo Linux Mint | `npm test`, `node --check server/api.js`, `npm run build` | PASS | 61/61 tests, 0 failed (1658.439282 ms); server syntax check passed; static site built. Authenticated API endpoint not yet tested. |
