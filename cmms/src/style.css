@@ -2,3 +2,8 @@
 /* Inline validation messages shared by all record modules */
 .field-error{display:block;color:#ff9b9b;font-size:.78rem;line-height:1.45;margin-top:5px;font-weight:600}
 input[aria-invalid="true"],select[aria-invalid="true"],textarea[aria-invalid="true"]{border-color:#ff7777!important;outline:1px solid #ff7777}
+
+/* Finance navigation: one parent with five separate pages */
+.finance-subnav{margin:0 0 8px 12px;padding:2px 0 4px 10px;border-left:1px solid rgba(150,175,220,.28)}
+.finance-subnav .finance-child{width:100%;min-height:33px;padding:7px 10px;font-size:12px;text-align:left;white-space:normal;line-height:1.35}
+.finance-subnav .finance-child.active{font-weight:700}
