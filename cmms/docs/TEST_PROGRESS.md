@@ -5,10 +5,10 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 
 | ID | Area | Required acceptance test | Status | Evidence |
 |---|---|---|---|---|
-| T-001 | Baseline | Existing `npm test` passes | PASS | User-run `npm test`, 2026-11-17: 51 passed, 0 failed, 1.356547056 s; development branch |
+| T-001 | Baseline | Existing `npm test` passes | PASS | User-run `npm test`, 2026-11-17: 51 passed, 0 failed, 1.356547056 s; development branch (initial baseline); later 56/56 passed |
 | T-002 | Build | `npm run build` succeeds | PASS | User-run `npm run build`, 2026-11-17: `Static site prepared in dist/ (no external build dependencies).` |
-| T-010 | Roles | Role matrix grants only intended capabilities | PASS | User-run `npm test`, 2026-11-17: role-policy unit tests passed; API integration NOT tested |
-| T-011 | Migration | Existing admin/technician credentials survive role migration | NOT RUN | Read-only schema inspection: 1 admin, 4 technicians; migration scripts/tests committed, not applied |
+| T-010 | Roles | Role matrix grants only intended capabilities | PASS | User-run `npm test`, 2026-11-17: role-policy unit tests passed; 2026-11-17 rerun 56/56 passed; API integration NOT tested |
+| T-011 | Migration | Existing admin/technician credentials survive role migration | NOT RUN | DRY RUN PASS: 2026-11-17 `node tools/migrate-roles.js` reported needed=true, 1 admin, 4 technicians, no changes. Actual migration NOT RUN |
 | T-012 | Sessions | Disabled account and role change revoke existing sessions | NOT RUN | — |
 | T-013 | Users | Only administrator can create/assign roles/reset credentials | NOT RUN | — |
 | T-020 | Work orders | Manager creates WO; Supervisor assigns WO | NOT RUN | — |
@@ -29,7 +29,9 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 |---|---|---|---|---|---|
 | 2026-11-17 | develop/v1.2-rbac-production-readiness (user checkout) | Lenovo Linux Mint, Node test runner | `npm test` | PASS | 51 tests; 51 passed; 0 failed; 0 skipped; duration 1356.547056 ms. User supplied terminal output. Exact local HEAD SHA not supplied. |
 | 2026-11-17 | develop/v1.2-rbac-production-readiness | Lenovo Linux Mint | `npm run build` | PASS | `Static site prepared in dist/ (no external build dependencies).` User supplied terminal output. |
-| 2026-11-17 | — | — | MariaDB migration and role/API tests | NOT RUN | Not covered by build or unit tests. |
+| 2026-11-17 | develop/v1.2-rbac-production-readiness (cf970ff checkout) | Lenovo Linux Mint | `npm test` | PASS | 56 tests; 56 passed, 0 failed; duration 1496.015821 ms. User supplied output. |
+| 2026-11-17 | cf970ff checkout | MariaDB (read-only) | `node tools/migrate-roles.js` | PASS (DRY RUN) | Migration needed=true; 1 admin and 4 technicians; no changes made. |
+| 2026-11-17 | — | — | Actual MariaDB migration and role/API tests | NOT RUN | Awaiting verified database backup and migration approval. |
 
 ## Next
 Audit current route authorization and implement tested role policy without changing main.
