@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {ROLES,ACTIONS,roleAllows,canAccess,requireAccess} from '../src/role-policy.js';
+test('every v1.2 role is declared',()=>assert.deepEqual(ROLES,['admin','manager','supervisor','coordinator','finance_admin','technician']));
+test('administrator has every defined action',()=>{for(const action of ACTIONS)assert.equal(roleAllows('admin',action),true,action);});
+test('manager can create WO and PO but cannot manage users or post finance',()=>{assert.ok(roleAllows('manager','workOrders.create'));assert.ok(roleAllows('manager','purchaseOrders.create'));assert.ok(!roleAllows('manager','users.manage'));assert.ok(!roleAllows('manager','finance.manage'));});
+test('supervisor assigns and reports, coordinator maintains PM and technicians',()=>{assert.ok(roleAllows('supervisor','workOrders.assign'));assert.ok(roleAllows('supervisor','reports.operational'));assert.ok(roleAllows('coordinator','pm.manage'));assert.ok(roleAllows('coordinator','people.update'));assert.ok(!roleAllows('coordinator','users.manage'));});
+test('finance administrator cannot modify operations',()=>{assert.ok(roleAllows('finance_admin','finance.manage'));assert.ok(!roleAllows('finance_admin','workOrders.assign'));});
+test('technician access is strictly bound to own assigned work order',()=>{const user={role:'technician',personId:'p1'};assert.ok(canAccess(user,'workOrders.progressOwn',{assigneeId:'p1'}));assert.ok(!canAccess(user,'workOrders.progressOwn',{assigneeId:'p2'}));assert.ok(!canAccess({...user,personId:''},'reports.own'));assert.throws(()=>requireAccess(user,'workOrders.progressOwn',{assigneeId:'p2'}),e=>e.status===403);});
+test('unknown roles and actions fail closed',()=>{assert.ok(!roleAllows('superadmin','users.manage'));assert.ok(!roleAllows('admin','nonexistent'));assert.ok(!canAccess(null,'workOrders.readAll'));});
