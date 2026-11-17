@@ -7,7 +7,7 @@ Status values: **NOT RUN**, **PASS**, **FAIL**, **BLOCKED**. A committed test is
 |---|---|---|---|---|
 | T-001 | Baseline | Existing `npm test` passes | NOT RUN | — |
 | T-002 | Build | `npm run build` succeeds | NOT RUN | — |
-| T-010 | Roles | Role matrix grants only intended capabilities | NOT RUN | — |
+| T-010 | Roles | Role matrix grants only intended capabilities | NOT RUN | `tests/role-policy.test.js` committed; execution pending |
 | T-011 | Migration | Existing admin/technician credentials survive role migration | NOT RUN | — |
 | T-012 | Sessions | Disabled account and role change revoke existing sessions | NOT RUN | — |
 | T-013 | Users | Only administrator can create/assign roles/reset credentials | NOT RUN | — |
