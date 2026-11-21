@@ -53,7 +53,13 @@ try{
   if(role==='finance_admin'){assert.ok(!content.includes('Operational work orders'));}
   ok('Chromium browser renders '+role+' authorized workspace');
  }
- ws.close();
+ // Browser-level manager creation: use CDP Input key events, avoid blocking JS evaluation on submit.
+ await cdp('Network.clearBrowserCookies');await cdp('Network.setCookie',{name:'cmms_session',value:cookies.manager.split('=')[1],url:base+'/api/me',path:'/api',httpOnly:true,sameSite:'Strict'});await cdp('Page.navigate',{url:base+'/'});
+ let formReady=false;for(let i=0;i<60;i++){await delay(120);formReady=await evaluate('!!document.getElementById("restrictedCreate")');if(formReady)break}assert.ok(formReady,'manager form available');
+ await evaluate('(()=>{const f=document.getElementById("restrictedCreate");f.elements.namedItem("title").value="Browser-created maintenance order";f.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));return "submitted"})()');
+ let browserCreated=false;for(let i=0;i<50;i++){await delay(120);const [[row]]=await db.query('SELECT data FROM cmms_state WHERE id=1');browserCreated=JSON.parse(row.data).workOrders.some(w=>w.title==='Browser-created maintenance order');if(browserCreated)break}
+ if(!browserCreated)throw Error('Browser manager creation not persisted: '+String(await evaluate('document.getElementById("restrictedError")?.innerText||""')));
+ ok('Chromium manager form submits and persists work order');
  const revision=(await request('/api/operational/work-orders',{cookie:cookies.manager})).data.revision;
  const createBody={revision,workOrder:{title:'Disposable integration pump test',priority:'High'}};
  for(const role of ['supervisor','coordinator','finance_admin','technician'])assert.equal((await request('/api/operational/work-orders/create',{method:'POST',cookie:cookies[role],body:createBody})).status,403);ok('unauthorized work order creation rejected');
@@ -71,6 +77,13 @@ try{
  const invalidCreate=await request('/api/operational/work-orders/create',{method:'POST',cookie:cookies.manager,body:{revision:assigned.data.revision,workOrder:{title:'Forged',status:'Completed'}}});assert.equal(invalidCreate.status,400);ok('manager cannot forge work order status');
  const invalidAssign=await request('/api/operational/work-orders/assign',{method:'POST',cookie:cookies.supervisor,body:{revision:assigned.data.revision,assignment:{workOrderId:createdWO.data.workOrderId,assigneeId:'nonexistent'}}});assert.equal(invalidAssign.status,400);ok('supervisor cannot assign nonexistent employee');
  const badFinance=await request('/api/finance/summary?start=2026-11-30&end=2026-11-01',{cookie:cookies.finance_admin});assert.equal(badFinance.status,400);ok('invalid finance date range rejected');
- const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(assigned.data.revision));ok('rejected writes do not advance revision');
+ const newOrder=await request('/api/operational/work-orders/create',{method:'POST',cookie:cookies.manager,body:{revision:assigned.data.revision,workOrder:{title:'Browser supervisor assignment target'}}});assert.equal(newOrder.status,201);
+ await cdp('Network.clearBrowserCookies');await cdp('Network.setCookie',{name:'cmms_session',value:cookies.supervisor.split('=')[1],url:base+'/api/me',path:'/api',httpOnly:true,sameSite:'Strict'});await cdp('Page.navigate',{url:base+'/'});
+ let assignReady=false;for(let i=0;i<60;i++){await delay(120);assignReady=await evaluate('!!document.getElementById("restrictedAssign")');if(assignReady)break}assert.ok(assignReady,'supervisor form available');
+ await evaluate('(()=>{const f=document.getElementById("restrictedAssign");f.elements.namedItem("workOrderId").value='+JSON.stringify(newOrder.data.workOrderId)+';f.elements.namedItem("assigneeId").value='+JSON.stringify(state.people[0].id)+';f.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));return "submitted"})()');
+ let browserAssigned=false;for(let i=0;i<50;i++){await delay(120);const [[row]]=await db.query('SELECT data FROM cmms_state WHERE id=1');browserAssigned=JSON.parse(row.data).workOrders.find(w=>w.id===newOrder.data.workOrderId)?.assigneeId===state.people[0].id;if(browserAssigned)break}
+ if(!browserAssigned)throw Error('Browser supervisor assignment not persisted: '+String(await evaluate('document.getElementById("restrictedError")?.innerText||""')));
+ ok('Chromium supervisor form assigns and persists work order');ws.close();
+ const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(newOrder.data.revision)+1);ok('rejected writes do not advance revision beyond authorized browser changes');
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
