@@ -226,6 +226,17 @@ try{
  assert.equal(unchangedRevocationState.data,revocationState.data);
  await db.execute('UPDATE cmms_users SET active=1 WHERE id=?',[techId]);
  ok('database-side account revocation rejects stale state mutation without commit');
+ // Gate 18: a stale but still cached browser cookie cannot enumerate media or
+ // read technician photos after direct database-side account deactivation.
+ const mediaLogin=await request('/api/login',{method:'POST',body:{username:users.manager.username,password:pw}});
+ assert.equal(mediaLogin.status,200);
+ await db.execute('UPDATE cmms_users SET active=0 WHERE id=?',[users.manager.id]);
+ try{
+  assert.equal((await request('/api/files?type=assets&id=nonexistent',{cookie:mediaLogin.cookie})).status,401);
+  assert.equal((await request('/api/technician-photo/'+techId,{cookie:mediaLogin.cookie})).status,401);
+ }finally{await db.execute('UPDATE cmms_users SET active=1 WHERE id=?',[users.manager.id]);}
+ ok('DB-revoked cached session denied attachment listing and technician photo read');
+
  // Deterministic in-flight revocation: hold state row lock until account is revoked.
  const raceLogin=await request('/api/login',{method:'POST',body:{username:users.technician.username,password:pw}});
  assert.equal(raceLogin.status,200);

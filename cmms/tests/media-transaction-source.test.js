@@ -15,3 +15,16 @@ test('media upload does not bypass initial role/capability authorization',()=>{
  const h=section("if(path==='/api/files'&&method==='POST'",'const fileMatch=path.match');
  assert.match(h,/if\(type==='quotes'\)assertCapability\(session,'requestPurchase'\);else admin\(session\)/);
 });
+test('attachment deletion locks metadata, revalidates administrator and commits audit atomically',()=>{
+ const h=section("if(fileMatch&&method==='DELETE'", "if(path.startsWith('/api/'))");
+ const begin=h.indexOf('await connection.beginTransaction()'),auth=h.indexOf('await revalidateAccountForWrite(connection,session)'),lock=h.indexOf('FOR UPDATE'),del=h.indexOf("await connection.execute('DELETE FROM cmms_files"),audit=h.indexOf('await auditEvent(connection,session'),commit=h.indexOf('await connection.commit()'),cleanup=h.indexOf('await unlink(join(MEDIA_ROOT,file.id))');
+ assert.ok(begin>=0&&begin<auth&&auth<lock&&lock<del&&del<audit&&audit<commit&&commit<cleanup);
+ assert.match(h,/catch\(e\)\{await connection\.rollback\(\);throw e;\}finally\{connection\.release\(\);\}/);
+});
+
+test('media read endpoints revalidate live database account before serving metadata or bytes',()=>{
+ for(const [start,end] of [["if(photoMatch&&method==='GET')","if(path==='/api/files'&&method==='GET')"],["if(path==='/api/files'&&method==='GET')","if(path==='/api/files'&&method==='POST')"],["if(fileMatch&&method==='GET')","if(fileMatch&&method==='DELETE')"]]){
+  const h=section(start,end);assert.match(h,/guard\(req,session\);await revalidateAccountForMediaRead\(session\)/);
+ }
+ assert.match(source,/async function revalidateAccountForMediaRead\(session\)/);
+});
