@@ -11,3 +11,13 @@ test('account edit and deactivation invalidate existing sessions',()=>{
  assert.match(handler("if(path==='/api/users'&&method==='PATCH'", "if(path==='/api/users/separate'"),/sessions\.delete\(token\)/);
  assert.match(handler("if(path==='/api/users/status'", "if(path==='/api/"),/sessions\.delete\(token\)/);
 });
+
+test('account edits and status changes revalidate administrator inside transaction',()=>{
+ for(const [start,end] of [["if(path==='/api/users'&&method==='PATCH'","if(path==='/api/users/separate'"],["if(path==='/api/users/status'","if(path==='/api/operational/people'"]]){
+  const h=handler(start,end);
+  assert.match(h,/await connection\.beginTransaction\(\);await revalidateAccountForWrite\(connection,session\)/);
+  assert.match(h,/await connection\.commit\(\)/);
+  assert.match(h,/await connection\.rollback\(\)/);
+  assert.ok(h.indexOf('await connection.commit()')<h.indexOf('sessions.delete(token)'));
+ }
+});
