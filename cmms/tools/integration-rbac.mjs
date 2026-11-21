@@ -184,6 +184,32 @@ try{
  assert.equal(Number(matrixAfter.revision),Number(matrixBefore.revision));
  assert.equal(matrixAfter.data,matrixBefore.data);
  ok('ten anonymous and manager mutation attempts denied; state unchanged');
+ // Gate 17: all five non-admin roles must fail closed on privileged mutations,
+ // without changing state, audit or financial journal row counts.
+ const [beforeAudit]=await db.query('SELECT COUNT(*) AS n FROM cmms_audit_events');
+ const [beforeGl]=await db.query('SELECT COUNT(*) AS n FROM cmms_gl_journals');
+ const [[beforeSixRole]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ const privileged=[
+  ['/api/users/status','POST',{id:users.admin.id,active:false}],
+  ['/api/audit/settings','PATCH',{category:'users',enabled:false}],
+  ['/api/accounting/periods/close','POST',{period:'2026-11'}],
+  ['/api/accounting/journals','POST',{date:'2026-11-21',description:'Forbidden',lines:[]}],
+ ];
+ let denied=0;
+ for(const role of ['manager','supervisor','coordinator','finance_admin','technician']){
+  for(const [path,method,body] of privileged){
+   const r=await request(path,{method,cookie:cookies[role],body});
+   assert.equal(r.status,role==='technician'?401:403,role+' denied '+path);denied++;
+  }
+ }
+ const [[afterSixRole]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ const [afterAudit]=await db.query('SELECT COUNT(*) AS n FROM cmms_audit_events');
+ const [afterGl]=await db.query('SELECT COUNT(*) AS n FROM cmms_gl_journals');
+ assert.deepEqual(afterSixRole,beforeSixRole,'forbidden role matrix must not mutate state');
+ assert.equal(Number(afterAudit[0].n),Number(beforeAudit[0].n),'forbidden role matrix must not append audit');
+ assert.equal(Number(afterGl[0].n),Number(beforeGl[0].n),'forbidden role matrix must not post GL journals');
+ ok('four active non-admin roles and revoked technician denied '+denied+' privileged mutations; state, audit and GL unchanged');
+
  // Simultaneous read requests must all reject a revoked token after a completed update.
  const staleRequests=await Promise.all(Array.from({length:12},()=>request('/api/me',{cookie:preSeparate.cookie})));
  assert.ok(staleRequests.every(r=>r.status===401),'all post-revocation concurrent reads fail closed');
