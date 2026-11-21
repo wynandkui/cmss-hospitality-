@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {inspectIdentityIntegrity} from '../src/identity-integrity.js';
+const people=[{id:'p1'},{id:'p2'}];
+const users=[{id:'u1',role:'technician',personId:'p1'},{id:'u2',role:'technician',personId:'p2'},{id:'admin',role:'admin',personId:''}];
+test('unique employee mapping passes',()=>{const r=inspectIdentityIntegrity(users,people);assert.equal(r.passed,true);assert.equal(r.technicians,2)});
+test('shared employee mapping is critical',()=>{const r=inspectIdentityIntegrity([...users,{id:'u3',role:'technician',personId:'p1'}],people);assert.ok(r.findings.some(f=>f.code==='TECHNICIAN_SHARED_EMPLOYEE'&&f.severity==='critical'))});
+test('orphan technician mapping fails',()=>assert.ok(inspectIdentityIntegrity([{id:'u1',role:'technician',personId:'missing'}],people).findings.some(f=>f.code==='TECHNICIAN_ORPHAN_LINK')));
+test('missing technician mapping fails',()=>assert.ok(inspectIdentityIntegrity([{id:'u1',role:'technician',personId:''}],people).findings.some(f=>f.code==='TECHNICIAN_UNLINKED')));
+test('duplicate employee identifiers fail',()=>assert.ok(inspectIdentityIntegrity(users,[...people,{id:'p1'}]).findings.some(f=>f.code==='EMPLOYEE_ID_DUPLICATE')));
+test('duplicate account identifiers fail',()=>assert.ok(inspectIdentityIntegrity([...users,{id:'u1',role:'admin'}],people).findings.some(f=>f.code==='ACCOUNT_ID_INVALID_OR_DUPLICATE')));
+test('no sensitive fields leak into findings',()=>{const r=inspectIdentityIntegrity([{...users[0],username:'private-user',password_hash:'secret'}],[{...people[0],name:'private-name'}]);const s=JSON.stringify(r);assert.ok(!s.includes('private-user')&&!s.includes('private-name')&&!s.includes('secret'))});
+test('malformed inputs rejected',()=>assert.throws(()=>inspectIdentityIntegrity(null,[]),TypeError));
