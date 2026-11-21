@@ -200,6 +200,25 @@ try{
  assert.equal(unchangedRevocationState.data,revocationState.data);
  await db.execute('UPDATE cmms_users SET active=1 WHERE id=?',[techId]);
  ok('database-side account revocation rejects stale state mutation without commit');
+ // Deterministic in-flight revocation: hold state row lock until account is revoked.
+ const raceLogin=await request('/api/login',{method:'POST',body:{username:users.technician.username,password:pw}});
+ assert.equal(raceLogin.status,200);
+ const [[raceRecord]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ const lockConn=await mysql.createConnection({...config,database:TEMP});
+ await lockConn.beginTransaction();
+ await lockConn.query('SELECT revision FROM cmms_state WHERE id=1 FOR UPDATE');
+ let raceResponse;
+ try{
+  const pendingWrite=request('/api/state',{method:'PUT',cookie:raceLogin.cookie,body:{revision:Number(raceRecord.revision),state:JSON.parse(raceRecord.data)}});
+  await db.execute('UPDATE cmms_users SET active=0 WHERE id=?',[techId]);
+  await lockConn.commit();
+  raceResponse=await pendingWrite;
+ }finally{await lockConn.rollback();await lockConn.end();await db.execute('UPDATE cmms_users SET active=1 WHERE id=?',[techId]);}
+ assert.equal(raceResponse.status,401,'in-flight write denied after account revocation');
+ const [[raceAfter]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ assert.equal(raceAfter.revision,raceRecord.revision);
+ assert.equal(raceAfter.data,raceRecord.data);
+ ok('in-flight write blocked by row lock, account revoked, no state commit');
  const [[beforePermission]]=await db.execute('SELECT permissions FROM cmms_users WHERE id=?',[techId]);
  const freshLogin=await request('/api/login',{method:'POST',body:{username:users.manager.username,password:pw}});
  assert.equal(freshLogin.status,200);
