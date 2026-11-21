@@ -1,3 +1,5 @@
+> **CAPACITY CONFIRMED — 2026-11-21:** Project owner confirms **one developer at 20 productive engineering hours/week**. Capacity decision CLOSED. Remaining Gate 0 code-to-requirement traceability and current-HEAD isolated tests are OPEN. Updated planning forecast: R1 pilot **August–October 2027**, full enterprise **January–March 2029** (provisional). See `docs/CMMS_RELEASE_FORECAST_2026-11-21.md`.
+
 # Gate 0 — Preliminary Source Audit and Capacity Decision
 Date: 2026-11-21 | Status: PARTIAL; not a completed 184-requirement conformance audit
 
@@ -26,7 +28,7 @@ Read directly from GitHub branch `develop/v1.2-rbac-production-readiness`:
 7. **Evidence limitation:** no tests executed; no production access; no full 184-row requirement-to-file mapping performed yet. Do not mark Gate 0 complete.
 
 ## Required capacity decision
-**Actual productive engineering capacity is not known.** User must confirm number of developers and hours/week each can reliably contribute, plus availability of a product owner for acceptance and external compliance review. AI assistance does not count as an independently staffed full-time engineer.
+**Confirmed: one developer, 20 productive engineering hours/week.** Product-owner availability for acceptance and external compliance review remains unconfirmed. AI assistance does not count as an independently staffed full-time engineer.
 
 Assumption-based forecast remains:
 - At 40 productive engineering hours/week, pilot R1 March–April 2027 and full enterprise Dec 2027–Jan 2028, subject to Gate 0 and release gates.
@@ -41,4 +43,4 @@ Assumption-based forecast remains:
 - No production DB, code or deployment changes as part of this audit.
 
 ## Next single decision
-Ask project owner: **How many productive development hours per week can be committed, and by how many developers?** Without that answer, the schedule cannot be made an evidence-based commitment.
+Capacity question resolved: **1 developer × 20 productive hours/week**. Next: complete the 184-item code/test traceability and run isolated current-HEAD tests before setting an approved release date.
