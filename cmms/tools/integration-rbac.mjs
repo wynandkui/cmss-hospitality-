@@ -29,6 +29,10 @@ try{
  for(const asset of ['/','/src/main.js','/src/restricted-workspace.js','/src/role-policy.js']){const response=await fetch(base+asset);assert.equal(response.status,200,'UI asset '+asset);const body=await response.text();assert.ok(body.length>50,'UI asset nonempty '+asset);}ok('all required restricted browser modules served');
  const forbidden=await fetch(base+'/src/role-migration.js');assert.equal(forbidden.status,404);ok('non-public source module remains blocked');
  const preflight=await fetch(base+'/api/me');assert.equal(preflight.status,401);assert.equal(preflight.headers.get('cache-control'),'no-store');assert.equal(preflight.headers.get('x-content-type-options'),'nosniff');ok('unauthenticated API fails closed with no-store and nosniff');
+ // Gate 26: untrusted reverse-proxy headers must not override the configured origin scheme.
+ const spoofedProto=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://127.0.0.1:3097','X-Forwarded-Proto':'https'},body:JSON.stringify({username:'nobody',password:'invalid'})});
+ assert.equal(spoofedProto.status,403,'untrusted forwarded scheme must not bypass same-origin validation');
+ ok('spoofed X-Forwarded-Proto cannot override configured origin scheme');
  const forged=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://attacker.invalid'},body:JSON.stringify({username:'nobody',password:'invalid'})});assert.equal(forged.status,403);ok('cross-origin login blocked');
  const malformed=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:'{invalid'});assert.equal(malformed.status,400);ok('malformed JSON rejected');
  const cookies={};for(const role of Object.keys(users)){const r=await request('/api/login',{method:'POST',body:{username:users[role].username,password:pw}});assert.equal(r.status,200,role+' login');cookies[role]=r.cookie;}ok('all six role sessions authenticated');
