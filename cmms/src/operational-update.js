@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {requireAccess} from './role-policy.js';
 import {validateRecord} from './validation.js';
 
@@ -18,4 +19,21 @@ export function assignWorkOrder(source,session,input){
  const issues=validateRecord('workOrders',row,next,id);
  if(issues.length)throw Object.assign(Error(issues.map(i=>i.message).join(' ')),{status:400});
  return {next,before:original,after:row};
+}
+
+export function createManagerWorkOrder(source,session,input){
+ requireAccess(session,'workOrders.create');
+ const allowed=['title','description','priority','type','assetId','locationId','dueDate'];
+ if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!allowed.includes(k)))throw Object.assign(Error('Unexpected work order fields'),{status:400});
+ if(typeof input.title!=='string'||!input.title.trim()||input.title.length>200)throw Object.assign(Error('Valid title required'),{status:400});
+ for(const key of allowed.filter(k=>k!=='title'))if(input[key]!==undefined&&typeof input[key]!=='string')throw Object.assign(Error('Invalid '+key),{status:400});
+ if(input.priority!==undefined&&!['Critical','High','Medium','Low'].includes(input.priority))throw Object.assign(Error('Invalid priority'),{status:400});
+ if(input.type!==undefined&&!['Corrective','Preventive'].includes(input.type))throw Object.assign(Error('Invalid type'),{status:400});
+ const next=structuredClone(source);
+ const id=randomUUID();
+ const row={id,code:'WO-'+new Date().getUTCFullYear()+'-'+id.slice(0,8).toUpperCase(),type:'Corrective',status:'Open',priority:'Medium',createdAt:new Date().toISOString(),completedAt:'',laborHours:0,materialCost:0,...input,title:input.title.trim(),assigneeId:''};
+ const issues=validateRecord('workOrders',row,next);
+ if(issues.length)throw Object.assign(Error(issues.map(i=>i.message).join(' ')),{status:400});
+ next.workOrders.push(row);
+ return {next,after:row};
 }
