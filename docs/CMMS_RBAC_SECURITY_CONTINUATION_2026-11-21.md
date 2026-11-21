@@ -1,0 +1,31 @@
+# CMMS RBAC security continuation — 2026-11-21
+
+## Reconciled baseline
+
+- Current branch: `develop/v1.2-rbac-production-readiness`.
+- Verified branch tip before this note: `34d338f` (integration evidence); earlier `88e89c5` records 92 local unit checks.
+- Referenced `2cea60e` is not present in local object database or advertised local tracking history; do not treat it as a verified commit.
+- Existing Gate 0 disposable evidence records 10/10 migration, 7/7 backup/restore, and 55/55 RBAC integration checks. These were **not rerun** here.
+- Untracked root `.gitignore` is user-owned and intentionally untouched.
+
+## Security review (source inspection, not executed acceptance tests)
+
+- `cmms/server/api.js` stores sessions in an in-memory Map, snapshots `role`, `personId`, and permissions on login (`/api/login`).
+- `/api/logout` deletes its token; `/api/permissions` PATCH deletes sessions of the targeted technician after commit.
+- Review gap: role change, account disable, employee reassignment and password reset paths must each be checked for active-session invalidation. The current `auth()` checks session expiry and Map membership, not current account state in SQL.
+- Existing `cmms/tools/integration-rbac.mjs` checks logout invalidation and numerous RBAC paths, but this review does not establish coverage for account disable or post-login role mutation.
+
+## Next bounded automated security gate
+
+1. Use only isolated disposable MariaDB fixture and localhost API; never connect production or migrate its schema.
+2. Add negative tests for unauthenticated requests, forbidden roles, cross-technician work-order reads/updates, privilege escalation and unchanged revision/data after rejection.
+3. Add tests for permission revocation, account deactivation, role reassignment, password reset and stale-session reuse; ensure previously issued tokens fail with 401 after each security change.
+4. Fix confirmed defects in narrow commits; execute each affected security suite once and capture logs under a local ignored evidence directory. Do not rerun the entire 92-test baseline without code changes warranting it.
+5. Record counts, failure details, SHA of test evidence and exact commit IDs; do not commit passwords, cookies, raw fixtures or `.env` files.
+
+## Token-efficient execution protocol
+
+- Batch related edits, tests, documentation and Git staging in a single controlled local runner; return only gate status, counts, commit hash and blocking errors to chat.
+- Fail fast on unsafe database target, dirty tracked files, missing prerequisites or a failing security assertion. Preserve full local logs for audit.
+- Commit and push only reviewed source/tests/docs; do not stage untracked files wholesale.
+- This checkpoint is **documentation and source review only**, not security-gate acceptance or deployment approval.
