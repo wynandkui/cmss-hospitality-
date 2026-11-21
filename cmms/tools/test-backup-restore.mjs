@@ -1,9 +1,10 @@
 // Isolated backup/restore acceptance. Never writes to configured or source database.
 import mysql from 'mysql2/promise';
-import {readFileSync,mkdtempSync,rmSync,statSync,createReadStream,createWriteStream} from 'node:fs';
+import {readFileSync,mkdtempSync,rmSync,statSync,createReadStream,createWriteStream,writeFileSync,mkdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {randomBytes,createHash} from 'node:crypto';
+import {randomBytes,randomUUID,createHash} from 'node:crypto';
+import {reconcileMediaDirectory} from '../server/media-reconciliation.js';
 import {spawn} from 'node:child_process';
 import assert from 'node:assert/strict';
 if(process.env.CMMS_RUN_DISPOSABLE_RESTORE!=='YES')throw Error('Explicit disposable restore opt-in required');
@@ -31,5 +32,26 @@ try{
  for(const t of tables){const [rows]=await restored.query('SELECT * FROM `'+t+'`');assert.equal(rows.length,baseline[t].count,'count '+t);assert.equal(digest(rows),baseline[t].sha256,'checksum '+t)}pass('every restored table matches source row counts and SHA-256');
  for(const t of ['cmms_users','cmms_state','cmms_transactions','cmms_audit_events'])assert.ok(names.includes(t),'critical table '+t);pass('users, application state, transaction journal and audit tables restored');
  const [[state]]=await restored.query('SELECT data FROM cmms_state WHERE id=1');const data=JSON.parse(state.data);assert.ok(data&&typeof data==='object');pass('restored CMMS state parses as JSON');
+ // Gate 27: independently recover synthetic media and reconcile it with restored metadata IDs.
+ // Never access or alter live media. The file inventory is entirely disposable.
+ const mediaSource=join(temp,'media-source'),mediaRestored=join(temp,'media-restored');
+ mkdirSync(mediaSource,{mode:0o700});mkdirSync(mediaRestored,{mode:0o700});
+ const attachedId=randomUUID(),orphanId=randomUUID(),missingId=randomUUID();
+ const content=Buffer.from('gate27-synthetic-maintenance-attachment');
+ writeFileSync(join(mediaSource,attachedId),content,{mode:0o600});
+ writeFileSync(join(mediaSource,orphanId),'unreferenced synthetic file',{mode:0o600});
+ // Add synthetic metadata only to the disposable restored database, never to source.
+ for(const id of [attachedId,missingId])await restored.execute('INSERT INTO cmms_files (id,entity_type,entity_id,original_name,mime,size_bytes,uploaded_by) VALUES (?,?,?,?,?,?,?)',[id,'assets','gate27-test','synthetic.txt','text/plain',content.length,'gate27-test']);
+ const [recoveredRows]=await restored.query('SELECT id FROM cmms_files WHERE entity_id=?',['gate27-test']);
+ const recoveredIds=recoveredRows.map(r=>r.id);
+ const baselineMedia=await reconcileMediaDirectory(mediaSource,recoveredIds);
+ assert.deepEqual(baselineMedia.orphaned,[orphanId]);assert.deepEqual(baselineMedia.missing,[missingId]);
+ writeFileSync(join(mediaRestored,attachedId),readFileSync(join(mediaSource,attachedId)),{mode:0o600});
+ const recoveredChecksum=createHash('sha256').update(readFileSync(join(mediaRestored,attachedId))).digest('hex');
+ assert.equal(recoveredChecksum,createHash('sha256').update(content).digest('hex'));
+ const mediaReport=await reconcileMediaDirectory(mediaRestored,recoveredIds);
+ assert.deepEqual(mediaReport.orphaned,[]);assert.deepEqual(mediaReport.missing,[missingId]);
+ assert.equal(mediaReport.physical,1);assert.equal(mediaReport.referenced,2);
+ pass('synthetic media recovery preserves SHA-256 and flags missing metadata references');
  await restored.end();console.log('RESTORE PASS '+passed+'/'+passed);console.log('DUMP SHA256 '+checksum+'; bytes '+bytes+'; tables '+tables.length);console.log('This validates the known test database, not a current production backup.');
 }catch(e){console.error('RESTORE FAIL after '+passed+' checks: '+e.message);process.exitCode=1}finally{if(created)await root.query('DROP DATABASE `'+TARGET+'`');await root.end();rmSync(temp,{recursive:true,force:true});console.log('Disposable restore database and temporary SQL dump removed')}
