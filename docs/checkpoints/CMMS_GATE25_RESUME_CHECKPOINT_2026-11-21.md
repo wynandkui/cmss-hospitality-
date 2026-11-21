@@ -42,3 +42,8 @@ Finish Gate 25 **record-level and capability-delegation authorization** for `/ap
 - Gate 26 work-in-progress: optional `CMMS_ALLOWED_HOSTS` exact Host allowlist with HTTP 421 on unknown hosts, and a synthetic hostile-Host integration probe. Added `src/host-security.js` with three directly passing policy decisions.
 - **Important:** First attempted full integration with a forged Host header FAILED at check 5: expected HTTP 421, received HTTP 200. This is an unresolved test/environment or runtime discrepancy; do not count as a pass or claim Gate 26 complete. Test runner was terminated and temporary `.env` removed. A separate old `node tools/integration-rbac.mjs` process PID 439973 predates this work; do not kill unrelated user processes.
 - Next: isolate Host header handling with raw `http.request`, inspect server process/port conflicts and test setup; rerun guarded suite once resolved. Then configure/test actual TLS terminator on disposable loopback and verify cookie, Origin and Host behavior end-to-end. No live deployment.
+
+## Gate 26 continuation — 2026-11-21
+- Replaced forged Host fetch probe with raw `node:http` Host override. Guarded integration **81/81**, evidence `/tmp/cmms-gate26-host-retest.log`; disposable DB and `.env` cleaned.
+- Latest respective successful aggregate **202/202**.
+- Prepared `cmms/deploy/staging/nginx.conf` and README for TLS terminator; **not deployed**. Nginx unavailable on laptop; actual TLS handshake remains a Gate 26 blocker.
