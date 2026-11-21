@@ -91,3 +91,15 @@ Applied `revalidateAccountForWrite(connection,session)` at transaction start for
 ## Security gate 10 — reconciliation and audit configuration
 
 Moved bank reconciliation's ledger read, reconciliation insert, and audit entry into one explicit transaction, preceded by `revalidateAccountForWrite` on the authenticated administrator account. Audit settings PATCH now revalidates the administrator account inside its existing transaction before mutation. This narrows the stale-session authorization window and ensures bank reconciliation data/audit atomicity; it does not make ledger balances serializable against concurrent posting. Existing disposable integration suite: **63/63 PASS**; disposable DB removed, `.env` cleaned. Evidence `/tmp/cmms-security-gate-reconcile-20261121.log`. Dedicated tests for reconciliation concurrency, upload file/DB atomicity and admin-management revocation races remain open. No production changes.
+
+## Security gate 11 — administrative transaction revalidation (automation run)
+
+Checked the named `ac29769` checkpoint against repository history and fetched the remote development branch. `ac29769` exists in history, but the current local and remote tip before this gate was `767747e`; no reset or history rewrite was performed. Added `revalidateAccountForWrite(connection,session)` inside the existing transactions for technician permission changes, account creation, and employee-record separation. This rejects stale administrator snapshots at the transaction's authorization point, not merely at request entry. Existing negative admin tests and employee separation integration coverage exercised these routes. The **executed** disposable suite reported **INTEGRATION PASS 63/63** and **Disposable test database removed**. Test log: `/tmp/cmms-security-gate-admin-20261121.log`; temporary `.env` removed. This run did not add dedicated in-flight race assertions for these three routes; the 63/63 figure is regression coverage only.
+
+### Bounded readiness review — still blocked
+
+- **High:** `/api/users` PATCH and `/api/users/status` POST still perform privileged updates outside a transaction-level administrator recheck. Other file and photo upload paths also rely on cached authorization and can write after in-flight revocation. Review and add bounded tests before release.
+- **High:** `/api/users/separate` acquires target-account lock before the state row, while ordinary state-backed writes acquire state then account. This inconsistent lock order can deadlock under contention; implement a consistent order and add a controlled concurrency test.
+- **Medium:** Bank reconciliation computes balance without a serializable snapshot against concurrent journal postings; confirm accounting consistency requirements and test before acceptance.
+- **Medium:** File-system upload and SQL metadata/audit changes are not one atomic resource transaction; audit and cleanup behavior require failure-injection tests.
+- **Release blockers:** documented threat-model sign-off, backup/restore drill, role matrix completion, and controlled pilot authorization. No production access or deployment occurred.
