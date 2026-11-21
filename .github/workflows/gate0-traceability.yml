@@ -1,0 +1,20 @@
+name: Gate 0 traceability tooling
+on:
+  pull_request:
+    paths:
+      - 'cmms/tools/gate0-traceability.py'
+      - 'cmms/tools/test-gate0-traceability.py'
+      - '.github/workflows/gate0-traceability.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-importer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run isolated importer test
+        run: python3 cmms/tools/test-gate0-traceability.py
