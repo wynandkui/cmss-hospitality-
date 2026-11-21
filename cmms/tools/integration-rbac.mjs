@@ -92,6 +92,33 @@ try{
  for(const role of ['finance_admin','technician'])assert.equal((await request('/api/operational/work-orders',{cookie:cookies[role]})).status,403);ok('operational projection denies finance and technician');
  for(const role of ['finance_admin','admin'])assert.equal((await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies[role]})).status,200);for(const role of ['manager','supervisor','coordinator','technician'])assert.equal((await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies[role]})).status,403);ok('finance role separation');
  for(const role of ['manager','supervisor','coordinator','finance_admin'])assert.equal((await request('/api/state',{cookie:cookies[role]})).status,403);ok('legacy full state fails closed');
+ // Gate 25: exhaustive six-role matrix for eight privileged read surfaces.
+ const gate25ReadRoutes=[
+  '/api/users','/api/audit/settings','/api/accounting/accounts',
+  '/api/accounting/supplier-statement?vendorId=missing&month=2026-11',
+  '/api/accounting/reports?from=2026-11-01&to=2026-11-30',
+  '/api/transactions','/api/audit/events',
+  '/api/operational/pm/plans'
+ ];
+ const [[gate25BeforeState]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ const [[gate25BeforeAudit]]=await db.query('SELECT COUNT(*) AS n FROM cmms_audit_events');
+ const [[gate25BeforeGl]]=await db.query('SELECT COUNT(*) AS n FROM cmms_gl_journals');
+ let gate25Assertions=0;
+ for(const role of ['admin','manager','supervisor','coordinator','finance_admin','technician']){
+  for(const route of gate25ReadRoutes){
+   const r=await request(route,{cookie:cookies[role]});
+   const expected=role==='admin'?(route.includes('supplier-statement')?404:200):route==='/api/operational/pm/plans'&&role==='coordinator'?200:403;
+   assert.equal(r.status,expected,role+' '+route+' expected '+expected);
+   gate25Assertions++;
+  }
+ }
+ const [[gate25AfterState]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ const [[gate25AfterAudit]]=await db.query('SELECT COUNT(*) AS n FROM cmms_audit_events');
+ const [[gate25AfterGl]]=await db.query('SELECT COUNT(*) AS n FROM cmms_gl_journals');
+ assert.deepEqual(gate25AfterState,gate25BeforeState);
+ assert.equal(Number(gate25AfterAudit.n),Number(gate25BeforeAudit.n));
+ assert.equal(Number(gate25AfterGl.n),Number(gate25BeforeGl.n));
+ ok('six-role privileged read matrix: '+gate25Assertions+' decisions; state, audit and GL unchanged');
  // Real Chromium browser smoke tests over CDP, isolated from user profiles.
  const chromePort=14000+Math.floor(Math.random()*1000);
  chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-first-run','--no-default-browser-check','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--remote-debugging-port='+chromePort,'--user-data-dir=/tmp/cmms-cdp-'+TEMP,'about:blank'],{stdio:'ignore'});
