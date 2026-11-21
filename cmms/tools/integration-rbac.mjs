@@ -456,5 +456,20 @@ try{
  const crashReport=await reconcileMediaDirectory(crashMediaDir,allMediaRows.map(r=>r.id));
  assert.ok(crashReport.orphaned.includes(crashFiles[0]),'read-only reconciliation detects real API crash orphan');
  ok('actual isolated API SIGKILL after attachment write leaves detectable uncommitted orphan');
+ // Gate 26: restart disposable API in explicitly configured TLS-terminator mode.
+ // Transport remains loopback HTTP here; this tests application cookie/origin behavior only.
+ child=spawn(process.execPath,['server/api.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,...env,DB_NAME:TEMP,CMMS_PORT:'3097',CMMS_BIND:'127.0.0.1',CMMS_MEDIA_DIR:'/tmp/cmms-rbac-it-media-'+TEMP,CMMS_HTTPS:'true'},stdio:'ignore'});
+ let tlsModeReady=false;for(let i=0;i<60;i++){if(child.exitCode!==null)throw Error('TLS-mode API exited');try{const r=await request('/api/status');if(r.status===200&&r.data.database===true){tlsModeReady=true;break}}catch{}await delay(200)}assert.ok(tlsModeReady,'TLS-terminator mode API ready');
+ const tlsLogin=await fetch(base+'/api/login',{method:'POST',headers:{Origin:'https://127.0.0.1:3097','Content-Type':'application/json'},body:JSON.stringify({username:users.admin.username,password:pw})});
+ assert.equal(tlsLogin.status,200,'configured HTTPS origin accepted');
+ const tlsCookie=tlsLogin.headers.get('set-cookie')||'';
+ assert.match(tlsCookie,/(?:^|;\s*)Secure(?:;|$)/i);
+ assert.match(tlsCookie,/HttpOnly/i);assert.match(tlsCookie,/SameSite=Strict/i);assert.match(tlsCookie,/Path=\/api/i);
+ const tlsWrongOrigin=await fetch(base+'/api/logout',{method:'POST',headers:{Origin:'http://127.0.0.1:3097',Cookie:tlsCookie.split(';')[0]}});
+ assert.equal(tlsWrongOrigin.status,403,'HTTP origin rejected in HTTPS configuration');
+ const tlsLogout=await fetch(base+'/api/logout',{method:'POST',headers:{Origin:'https://127.0.0.1:3097',Cookie:tlsCookie.split(';')[0]}});
+ assert.equal(tlsLogout.status,200,'HTTPS origin logout accepted');
+ assert.match(tlsLogout.headers.get('set-cookie')||'',/(?:^|;\s*)Secure(?:;|$)/i);
+ ok('HTTPS-configured cookie Secure flag and origin enforcement, including logout');
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
