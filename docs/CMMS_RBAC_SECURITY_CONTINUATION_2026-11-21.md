@@ -29,3 +29,11 @@
 - Fail fast on unsafe database target, dirty tracked files, missing prerequisites or a failing security assertion. Preserve full local logs for audit.
 - Commit and push only reviewed source/tests/docs; do not stage untracked files wholesale.
 - This checkpoint is **documentation and source review only**, not security-gate acceptance or deployment approval.
+
+## Security gate 1 — technician separation (implementation checkpoint)
+
+Source review established that `/api/users` PATCH invalidates affected sessions after an account edit, and `/api/users/status` invalidates sessions on status change. `/api/users/separate` previously changed `person_id` without revoking existing tokens, leaving an authenticated session with the prior employee scope until expiration. Added post-commit invalidation for the separated account in `cmms/server/api.js`.
+
+Added two narrowly scoped source-level regression checks in `cmms/tests/session-invalidation-source.test.js`. Observed: **2 passed, 0 failed**; `node --check cmms/server/api.js` succeeded. These are structural checks, **not** live API integration tests; they do not establish revocation under concurrent requests or verify database rollback behavior. A disposable database-backed negative/session suite is still required before release approval.
+
+No production database was accessed. Existing `.gitignore` remains untracked and untouched.
