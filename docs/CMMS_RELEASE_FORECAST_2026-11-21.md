@@ -1,5 +1,9 @@
+> **CAPACITY UPDATE — 2026-11-21 (supersedes 40-hour headline):** Confirmed commitment: **1 developer × 20 productive hours/week = 20 h/week**. Revised first controlled pilot **August–October 2027** (indicative, including schedule reserve). Full enterprise **January–March 2029** (indicative). Neither date is an approved commitment until Gate 0 traceability, isolated tests and task estimates are complete. Historical March–April 2027 and December 2027 dates below are retained solely as superseded 40-hour scenario history.
+
 # Hospitality CMMS — Delivery Forecast and First Release Plan
 Date: 2026-11-21 | Version 1.0 | Status: preliminary forecast, subject to Gate 0 audit
+
+## Superseded original 40-hour scenario (historical reference)
 
 ## Executive forecast
 - **First controlled pilot release (R1): March–April 2027** assuming dedicated ~40 productive engineering hours/week, prompt decisions and no major architectural rewrite.
@@ -79,3 +83,12 @@ No destructive SQL, production changes, deployment, force pushes or merges witho
 - `docs/ENTERPRISE_CMMS_ALIGNMENT_PLAN_2026-11-21.md`
 - `docs/CMMS_COSTING_BILLING_MODEL_2026-11-21.md`
 - `docs/CMMS_AI_COMMERCIAL_PROPOSAL_2026-11-21.md`
+
+
+## Approved capacity and recalculated delivery baseline (2026-11-21)
+- Confirmed staffing: **one developer**, **20 productive engineering hours/week**; no second developer assumed.
+- Remaining engineering envelope: 1,880–1,960 h (includes provisional 160–240 h AI engineering/evaluation); 20% schedule contingency yields **2,256–2,352 h**.
+- At 20 h/week: **112.8–117.6 weeks** from Monday 2026-11-23; approximately **January–March 2029** for full scope, excluding extraordinary external delays.
+- Pilot scope: prior 640–800 productive engineering hour estimate, with 20% schedule contingency = 768–960 h = **38.4–48 weeks** at 20 h/week, approximately **August–October 2027**. Pilot scope must be reduced or capacity increased to achieve an earlier date.
+- Revised checkpoints: Gate 0 audit **November–December 2026** (target; requires 120 h, six weeks at 20 h/week, so realistic completion **early January 2027** if no parallel work); security and pilot critical path **Q1–Q3 2027**; R1 controlled pilot **Aug–Oct 2027**; subsequent enterprise modules **Q4 2027–2028**; final enterprise **Q1 2029**.
+- Actual weekly capacity is confirmed, but development velocity and current test results remain unmeasured. Do not represent this as a fixed delivery promise.
