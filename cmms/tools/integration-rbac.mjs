@@ -188,6 +188,18 @@ try{
  const staleRequests=await Promise.all(Array.from({length:12},()=>request('/api/me',{cookie:preSeparate.cookie})));
  assert.ok(staleRequests.every(r=>r.status===401),'all post-revocation concurrent reads fail closed');
  ok('twelve concurrent stale-token requests denied');
+ // A DB-side account revocation must also block a stale in-memory session on state PUT.
+ const dbRevocationLogin=await request('/api/login',{method:'POST',body:{username:users.technician.username,password:pw}});
+ assert.equal(dbRevocationLogin.status,200);
+ const [[revocationState]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ await db.execute('UPDATE cmms_users SET active=0 WHERE id=?',[techId]);
+ const staleWrite=await request('/api/state',{method:'PUT',cookie:dbRevocationLogin.cookie,body:{revision:Number(revocationState.revision),state:JSON.parse(revocationState.data)}});
+ assert.equal(staleWrite.status,401,'DB-revoked technician token denied on state mutation');
+ const [[unchangedRevocationState]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ assert.equal(unchangedRevocationState.revision,revocationState.revision);
+ assert.equal(unchangedRevocationState.data,revocationState.data);
+ await db.execute('UPDATE cmms_users SET active=1 WHERE id=?',[techId]);
+ ok('database-side account revocation rejects stale state mutation without commit');
  const [[beforePermission]]=await db.execute('SELECT permissions FROM cmms_users WHERE id=?',[techId]);
  const freshLogin=await request('/api/login',{method:'POST',body:{username:users.manager.username,password:pw}});
  assert.equal(freshLogin.status,200);
