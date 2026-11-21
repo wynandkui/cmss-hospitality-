@@ -83,7 +83,21 @@ try{
  await evaluate('(()=>{const f=document.getElementById("restrictedAssign");f.elements.namedItem("workOrderId").value='+JSON.stringify(newOrder.data.workOrderId)+';f.elements.namedItem("assigneeId").value='+JSON.stringify(state.people[0].id)+';f.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));return "submitted"})()');
  let browserAssigned=false;for(let i=0;i<50;i++){await delay(120);const [[row]]=await db.query('SELECT data FROM cmms_state WHERE id=1');browserAssigned=JSON.parse(row.data).workOrders.find(w=>w.id===newOrder.data.workOrderId)?.assigneeId===state.people[0].id;if(browserAssigned)break}
  if(!browserAssigned)throw Error('Browser supervisor assignment not persisted: '+String(await evaluate('document.getElementById("restrictedError")?.innerText||""')));
- ok('Chromium supervisor form assigns and persists work order');ws.close();
- const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(newOrder.data.revision)+1);ok('rejected writes do not advance revision beyond authorized browser changes');
+ ok('Chromium supervisor form assigns and persists work order');
+ const pmRevision=(await request('/api/operational/work-orders',{cookie:cookies.coordinator})).data.revision;
+ const pmBody={revision:pmRevision,plan:{title:'Quarterly HVAC inspection',startDate:'2026-12-01',interval:90}};
+ for(const role of ['manager','supervisor','finance_admin','technician'])assert.equal((await request('/api/operational/pm/plans/create',{method:'POST',cookie:cookies[role],body:pmBody})).status,403);ok('PM plan creation denied to unauthorized roles');
+ const pmCreated=await request('/api/operational/pm/plans/create',{method:'POST',cookie:cookies.coordinator,body:pmBody});assert.equal(pmCreated.status,201,JSON.stringify(pmCreated.data));ok('coordinator creates PM plan');
+ assert.equal((await request('/api/operational/pm/plans/create',{method:'POST',cookie:cookies.coordinator,body:pmBody})).status,409);ok('stale PM revision rejected');
+ const pmList=await request('/api/operational/pm/plans',{cookie:cookies.coordinator});assert.equal(pmList.status,200);assert.ok(pmList.data.plans.some(p=>p.id===pmCreated.data.planId));assert.ok(!('people' in pmList.data));ok('PM plan persisted and restricted read projection');
+ for(const role of ['manager','supervisor','finance_admin','technician'])assert.equal((await request('/api/operational/pm/plans',{cookie:cookies[role]})).status,403);ok('PM read denied to unauthorized roles');
+ const [[pmAudit]]=await db.query("SELECT COUNT(*) AS n FROM cmms_audit_events WHERE entity_id=? AND action='create'",[pmCreated.data.planId]);assert.ok(Number(pmAudit.n)>=1);ok('PM creation audit recorded');
+ await cdp('Network.clearBrowserCookies');await cdp('Network.setCookie',{name:'cmms_session',value:cookies.coordinator.split('=')[1],url:base+'/api/me',path:'/api',httpOnly:true,sameSite:'Strict'});await cdp('Page.navigate',{url:base+'/'});
+ let pmFormReady=false;for(let i=0;i<60;i++){await delay(120);pmFormReady=await evaluate('!!document.getElementById("restrictedPmCreate")');if(pmFormReady)break}assert.ok(pmFormReady,'coordinator PM form available');
+ await evaluate('(()=>{const f=document.getElementById("restrictedPmCreate");f.elements.namedItem("title").value="Browser PM pump service";f.elements.namedItem("startDate").value="2026-12-10";f.elements.namedItem("interval").value="30";f.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));return "submitted"})()');
+ let browserPm=false;for(let i=0;i<50;i++){await delay(120);const [[row]]=await db.query('SELECT data FROM cmms_state WHERE id=1');browserPm=JSON.parse(row.data).plans.some(p=>p.title==='Browser PM pump service');if(browserPm)break}
+ if(!browserPm)throw Error('Coordinator PM browser submit not persisted: '+String(await evaluate('document.getElementById("restrictedError")?.innerText||""')));
+ ok('Chromium coordinator PM form persists plan');ws.close();
+ const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(pmCreated.data.revision)+1);ok('rejected writes do not advance revision beyond authorized browser changes');
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
