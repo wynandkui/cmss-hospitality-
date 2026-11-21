@@ -66,6 +66,25 @@ try{
  assert.equal(Number(preserved.n),1,'failed audit must roll back metadata deletion');
  assert.equal(fs.existsSync(syntheticMediaDir+'/'+rollbackFileId),true,'failed audit must preserve file bytes');
  ok('injected audit failure rolls back attachment delete and preserves bytes');
+ // Gate 21: injected audit failure after file write must remove orphan bytes.
+ const [[uploadStateRow]]=await db.query('SELECT data FROM cmms_state WHERE id=1');
+ const uploadState=JSON.parse(uploadStateRow.data);
+ const uploadAssetId='gate21-upload-asset';
+ uploadState.assets=[...(uploadState.assets||[]),{id:uploadAssetId,name:'Synthetic Gate 21 Asset'}];
+ await db.execute('UPDATE cmms_state SET data=? WHERE id=1',[JSON.stringify(uploadState)]);
+ const [[beforeUploadCount]]=await db.query("SELECT COUNT(*) AS n FROM cmms_files WHERE entity_type='assets' AND entity_id=?",[uploadAssetId]);
+ const filesBeforeUpload=new Set(fs.readdirSync(syntheticMediaDir));
+ const uploadTrigger='cmms_it_fail_media_upload';
+ await db.query("CREATE TRIGGER "+uploadTrigger+" BEFORE INSERT ON cmms_audit_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Synthetic upload audit failure'");
+ let failedUpload;
+ try{failedUpload=await fetch(base+'/api/files?type=assets&id='+uploadAssetId+'&name=gate21.txt',{method:'POST',headers:{Cookie:cookies.admin,'Content-Type':'text/plain'},body:'gate21-synthetic-content'});}
+ finally{await db.query('DROP TRIGGER IF EXISTS '+uploadTrigger);}
+ assert.ok(failedUpload.status>=500,'injected upload audit failure must reject upload');
+ const [[afterUploadCount]]=await db.query("SELECT COUNT(*) AS n FROM cmms_files WHERE entity_type='assets' AND entity_id=?",[uploadAssetId]);
+ assert.equal(Number(afterUploadCount.n),Number(beforeUploadCount.n),'failed upload must not commit attachment metadata');
+ assert.deepEqual(new Set(fs.readdirSync(syntheticMediaDir)),filesBeforeUpload,'failed upload must remove orphan bytes');
+ ok('injected upload audit failure rolls back metadata and removes orphan bytes');
+
 
 
 
