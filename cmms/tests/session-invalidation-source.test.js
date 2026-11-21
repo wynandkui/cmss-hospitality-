@@ -21,3 +21,16 @@ test('account edits and status changes revalidate administrator inside transacti
   assert.ok(h.indexOf('await connection.commit()')<h.indexOf('sessions.delete(token)'));
  }
 });
+
+test('state-backed account creation and separation acquire state before account row locks',()=>{
+ const creation=handler("if(path==='/api/users'&&method==='POST'","if(path==='/api/users'&&method==='PATCH'");
+ const separation=handler("if(path==='/api/users/separate'","if(path==='/api/users/status'");
+ const stateLock='SELECT revision,data FROM cmms_state WHERE id=1 FOR UPDATE';
+ for(const [name,h] of [['creation',creation],['separation',separation]]){
+  const state=h.indexOf(stateLock),admin=h.indexOf('await revalidateAccountForWrite(connection,session)');
+  assert.ok(state>=0&&admin>state,name+' must lock state before administrator account');
+ }
+ const target=separation.indexOf('SELECT id,username,role,person_id AS personId FROM cmms_users WHERE id=? FOR UPDATE');
+ assert.ok(target>separation.indexOf('await revalidateAccountForWrite(connection,session)'),'separation must lock target after state and actor');
+ assert.equal((separation.match(/SELECT revision,data FROM cmms_state WHERE id=1 FOR UPDATE/g)||[]).length,1);
+});
