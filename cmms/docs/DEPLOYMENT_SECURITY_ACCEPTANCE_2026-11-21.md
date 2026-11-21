@@ -13,8 +13,11 @@
 1. **HTTPS termination:** Configure trusted TLS reverse proxy and set `CMMS_HTTPS=true` only after confirming HTTPS works. Verify the `Secure` cookie attribute over the real HTTPS origin; not verified by local HTTP tests.
 2. **Reverse-proxy trust boundary:** The origin comparison currently considers `X-Forwarded-Proto`. Restrict proxy headers to a trusted reverse proxy and test forged headers before internet exposure.
 3. **Sessions and availability:** Session state is in-memory and is lost on restart; decide whether persistent/shared session storage is needed. Validate expiry and login throttling under real deployment.
-4. **Database recovery:** Conduct an isolated restore of the current production backup, validate table counts, users, transactions, audit events and media references; record recovery time and checksum. The integration suite clones a known test database, not a production backup.
+4. **Database recovery:** A full SQL dump-and-restore of the known 12-table test database passed (7/7 checks, every table row count and SHA-256 matched, 39,563-byte dump). **Still required:** restore the current production backup in an isolated environment; validate media files/references, record recovery time, and obtain recovery sign-off. No production database was changed.
 5. **Access/network:** Confirm firewall, backup encryption, service-account least privilege, secret-file mode 0600, OS updates, and protected media storage on deployment host.
 6. **Operational sign-off:** Test administrator recovery, real user acceptance, incident rollback, monitoring and an approved change window before production promotion.
 
 **Decision: NOT YET APPROVED FOR PRODUCTION.** This checkpoint covers automated security regression only, not a penetration test or completed deployment acceptance.
+
+## Isolated backup/restore test
+Run `npm run test:restore:isolated` only on the approved test host. This creates a uniquely named `CMMS_RESTORE_IT_*` database, dumps `CMMS_v12_restore_test`, restores it, verifies each table, then deletes the disposable database and temporary SQL dump. It explicitly refuses an unexpected configured database. The test is **not** proof of a current production backup or media recovery.

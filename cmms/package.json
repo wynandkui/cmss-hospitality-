@@ -12,7 +12,8 @@
     "check": "npm run test && npm run build",
     "test:integration:rbac": "CMMS_RUN_DISPOSABLE_INTEGRATION=YES node tools/integration-rbac.mjs",
     "test:migration:roles": "CMMS_RUN_DISPOSABLE_MIGRATION=YES node tools/test-role-migration.mjs",
-    "server": "node server/api.js"
+    "server": "node server/api.js",
+    "test:restore:isolated": "CMMS_RUN_DISPOSABLE_RESTORE=YES node tools/test-backup-restore.mjs"
   },
   "engines": {
     "node": ">=20"
