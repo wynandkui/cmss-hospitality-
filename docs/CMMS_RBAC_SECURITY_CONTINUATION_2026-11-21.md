@@ -117,3 +117,7 @@ Resumed on `develop/v1.2-rbac-production-readiness` at `b6fd3d6`. The isolated D
 ## Security gate 13 — state/account lock ordering (source-level)
 
 Changed the two state-backed administrator account operations to acquire `cmms_state FOR UPDATE` before locking the acting administrator account. Technician separation now locks state, revalidates/locks the acting administrator, and locks the target technician account in that order. Technician creation with a new People record also locks state before administrator revalidation; creation linked to an existing People record retains administrator-only revalidation. Added a source-level regression asserting lock order for both state-backed account operations. Observed **4/4 source-level checks passed**, `node --check` and `git diff --check` passed. No live MariaDB concurrency or deadlock test was run because the disposable test `.env` is absent. This is a narrow lock-order fix, **not** a proof of deadlock freedom for all routes; the full transaction graph and disposable concurrent test remain release blockers. Production data unchanged.
+
+### Gate 13 complete unit regression
+
+After commit `db2b0c7`, executed `npm test` once against the development working tree: **96/96 tests passed, 0 failed** (local evidence `/tmp/cmms-gate13-unit-20261121.log`). This verifies the source/unit regression baseline after the lock-order change, but does not replace the disposable MariaDB integration or deterministic concurrency gate. No live data accessed.
