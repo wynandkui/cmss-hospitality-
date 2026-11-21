@@ -314,5 +314,32 @@ try{
  const [[afterPermission]]=await db.execute('SELECT permissions FROM cmms_users WHERE id=?',[techId]);
  assert.equal(afterPermission.permissions,beforePermission.permissions,'forbidden permission update left DB unchanged');
  ok('non-admin permission escalation rejected without database mutation');
+ // Gate 22: force opposing row-lock acquisition in the disposable DB.
+ const deadlockA=await mysql.createConnection({...config,database:TEMP});
+ const deadlockB=await mysql.createConnection({...config,database:TEMP});
+ const lockIds=[users.admin.id,users.manager.id].sort();
+ const [[beforeDeadlockA]]=await db.execute('SELECT active FROM cmms_users WHERE id=?',[lockIds[0]]);
+ const [[beforeDeadlockB]]=await db.execute('SELECT active FROM cmms_users WHERE id=?',[lockIds[1]]);
+ let deadlockErrors=[];
+ try{
+  await deadlockA.query('SET SESSION innodb_lock_wait_timeout=5');
+  await deadlockB.query('SET SESSION innodb_lock_wait_timeout=5');
+  await deadlockA.beginTransaction();await deadlockB.beginTransaction();
+  await deadlockA.execute('SELECT id FROM cmms_users WHERE id=? FOR UPDATE',[lockIds[0]]);
+  await deadlockB.execute('SELECT id FROM cmms_users WHERE id=? FOR UPDATE',[lockIds[1]]);
+  const pA=deadlockA.execute('SELECT id FROM cmms_users WHERE id=? FOR UPDATE',[lockIds[1]]).catch(e=>{deadlockErrors.push(e.code);});
+  const pB=deadlockB.execute('SELECT id FROM cmms_users WHERE id=? FOR UPDATE',[lockIds[0]]).catch(e=>{deadlockErrors.push(e.code);});
+  await Promise.all([pA,pB]);
+  assert.ok(deadlockErrors.includes('ER_LOCK_DEADLOCK'),'MariaDB must detect the induced deadlock');
+ }finally{
+  await Promise.allSettled([deadlockA.rollback(),deadlockB.rollback()]);
+  await Promise.allSettled([deadlockA.end(),deadlockB.end()]);
+ }
+ const [[afterDeadlockA]]=await db.execute('SELECT active FROM cmms_users WHERE id=?',[lockIds[0]]);
+ const [[afterDeadlockB]]=await db.execute('SELECT active FROM cmms_users WHERE id=?',[lockIds[1]]);
+ assert.equal(afterDeadlockA.active,beforeDeadlockA.active);
+ assert.equal(afterDeadlockB.active,beforeDeadlockB.active);
+ ok('opposing account row locks trigger deadlock detection without committed changes');
+
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
