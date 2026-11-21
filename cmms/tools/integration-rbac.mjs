@@ -119,6 +119,40 @@ try{
  assert.equal(Number(gate25AfterAudit.n),Number(gate25BeforeAudit.n));
  assert.equal(Number(gate25AfterGl.n),Number(gate25BeforeGl.n));
  ok('six-role privileged read matrix: '+gate25Assertions+' decisions; state, audit and GL unchanged');
+ // Gate 25 continuation: privileged mutation routes reject all non-admin roles and anonymous requests.
+ const gate25MutationRoutes=[
+  ['/api/permissions','PATCH',{id:users.admin.id,permissions:{}}],
+  ['/api/audit/settings','PATCH',{category:'media',enabled:false}],
+  ['/api/accounting/journals','POST',{date:'2027-03-01',description:'Denied',lines:[{account:'5000',debit:1},{account:'2000',credit:1}]}],
+  ['/api/accounting/periods/close','POST',{period:'2027-03'}],
+  ['/api/accounting/reconcile','POST',{account:'1000',date:'2027-03-01',statementBalance:0}],
+  ['/api/users','POST',{username:'gate25-denied',role:'technician'}],
+  ['/api/users','PATCH',{id:users.admin.id,username:'gate25-denied'}],
+  ['/api/users/status','POST',{id:users.admin.id,active:false}],
+  ['/api/users/separate','POST',{id:users.technician.id,name:'Denied'}],
+  ['/api/files/'+randomUUID(),'DELETE',{}],
+ ];
+ const [[gate25MutBefore]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ const [[gate25AuditBefore]]=await db.query('SELECT COUNT(*) AS n FROM cmms_audit_events');
+ const [[gate25GlBefore]]=await db.query('SELECT COUNT(*) AS n FROM cmms_gl_journals');
+ const [[gate25UsersBefore]]=await db.query('SELECT COUNT(*) AS n FROM cmms_users');
+ let gate25MutationDecisions=0;
+ for(const [route,method,body] of gate25MutationRoutes){
+  const anon=await request(route,{method,body});assert.equal(anon.status,401,'anonymous '+method+' '+route);gate25MutationDecisions++;
+  for(const role of ['manager','supervisor','coordinator','finance_admin','technician']){
+   const r=await request(route,{method,body,cookie:cookies[role]});
+   assert.equal(r.status,403,role+' '+method+' '+route);gate25MutationDecisions++;
+  }
+ }
+ const [[gate25MutAfter]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ const [[gate25AuditAfter]]=await db.query('SELECT COUNT(*) AS n FROM cmms_audit_events');
+ const [[gate25GlAfter]]=await db.query('SELECT COUNT(*) AS n FROM cmms_gl_journals');
+ const [[gate25UsersAfter]]=await db.query('SELECT COUNT(*) AS n FROM cmms_users');
+ assert.deepEqual(gate25MutAfter,gate25MutBefore);
+ assert.equal(Number(gate25AuditAfter.n),Number(gate25AuditBefore.n));
+ assert.equal(Number(gate25GlAfter.n),Number(gate25GlBefore.n));
+ assert.equal(Number(gate25UsersAfter.n),Number(gate25UsersBefore.n));
+ ok('privileged mutation matrix: '+gate25MutationDecisions+' denied requests; state, audit, GL and users unchanged');
  // Real Chromium browser smoke tests over CDP, isolated from user profiles.
  const chromePort=14000+Math.floor(Math.random()*1000);
  chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-first-run','--no-default-browser-check','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--remote-debugging-port='+chromePort,'--user-data-dir=/tmp/cmms-cdp-'+TEMP,'about:blank'],{stdio:'ignore'});
