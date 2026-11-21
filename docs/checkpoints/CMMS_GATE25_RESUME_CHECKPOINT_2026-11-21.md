@@ -26,3 +26,7 @@ Finish Gate 25 **record-level and capability-delegation authorization** for `/ap
 2. Review `cmms/server/api.js`, `cmms/src/procurement-security.js`, `cmms/tools/integration-rbac.mjs` and `docs/CMMS_RBAC_SECURITY_CONTINUATION_2026-11-21.md`.
 3. Add targeted disposable tests and fixes; run one integration suite with `CMMS_RUN_DISPOSABLE_INTEGRATION=YES` and safe temporary `.env` pointing at `CMMS_putterdb` (harness creates unique `CMMS_RBAC_IT_*`).
 4. Record evidence and outstanding risks; commit and push to branch; verify remote SHA. No production changes.
+
+## Subsequent continuation — 2026-11-21
+- Added direct file-download authorization matrix (14 decisions) and explicitly delegated quotation permission matrix (4 decisions). Integration suite **79/79**, evidence `/tmp/cmms-gate25-direct-delegated.log`; latest respective aggregate **200/200**.
+- **Unresolved Gate 25 security issue:** asset and inspection attachments are readable by any authenticated role; record ownership not checked. Quotation capability grants global quotation access. Obtain explicit access-policy decision and implement scoped authorization before pilot.

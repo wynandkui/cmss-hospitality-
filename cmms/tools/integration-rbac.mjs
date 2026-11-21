@@ -180,6 +180,31 @@ try{
  assert.equal((await request('/api/technician-photo/'+users.technician.id)).status,401,'anonymous photo read denied');
  assert.equal((await request('/api/technician-photo/'+users.technician.id,{cookie:cookies.admin})).status,404,'admin photo lookup permitted');
  ok('technician photo ownership and role access: 8 decisions');
+ // Gate 25: verify direct file-byte authorization, not only metadata listing.
+ const directQuoteId=randomUUID(),directInvoiceId=randomUUID();
+ for(const [id,type] of [[directQuoteId,'quotes'],[directInvoiceId,'supplier_invoices']]){
+  fs.writeFileSync(syntheticMediaDir+'/'+id,'gate25-private-document',{mode:0o600});
+  await db.execute('INSERT INTO cmms_files (id,entity_type,entity_id,original_name,mime,size_bytes,uploaded_by) VALUES (?,?,?,?,?,?,?)',[id,type,'gate25-private','private.txt','text/plain',23,users.admin.id]);
+  assert.equal((await request('/api/files/'+id)).status,401,type+' anonymous direct download');
+  for(const role of ['manager','supervisor','coordinator','finance_admin','technician']){
+   assert.equal((await request('/api/files/'+id,{cookie:cookies[role]})).status,403,type+' '+role+' direct download');
+  }
+  const allowed=await fetch(base+'/api/files/'+id,{headers:{Cookie:cookies.admin}});
+  assert.equal(allowed.status,200,type+' admin direct download');
+  assert.equal(await allowed.text(),'gate25-private-document');
+ }
+ ok('direct quotation and supplier invoice downloads: 14 role and anonymous decisions');
+ // Explicitly delegated quotation access must not grant supplier-invoice access.
+ const delegateId=randomUUID(),delegateName='it_gate25_delegate';
+ await db.execute('INSERT INTO cmms_users(id,username,password_hash,role,person_id,permissions,active) VALUES(?,?,?,?,?,?,1)',[delegateId,delegateName,hash,'manager','',JSON.stringify({requestPurchase:true})]);
+ const delegateLogin=await request('/api/login',{method:'POST',body:{username:delegateName,password:pw}});
+ assert.equal(delegateLogin.status,200,'delegated account login');
+ assert.equal((await request('/api/files?type=quotes&id=gate25-private',{cookie:delegateLogin.cookie})).status,200,'delegated quotation listing');
+ const delegateDownload=await fetch(base+'/api/files/'+directQuoteId,{headers:{Cookie:delegateLogin.cookie}});
+ assert.equal(delegateDownload.status,200,'delegated quotation bytes');
+ assert.equal((await request('/api/files?type=supplier_invoices&id=gate25-private',{cookie:delegateLogin.cookie})).status,403,'delegated account denied invoice metadata');
+ assert.equal((await request('/api/files/'+directInvoiceId,{cookie:delegateLogin.cookie})).status,403,'delegated account denied invoice bytes');
+ ok('delegated purchase permission allows quotations but not supplier invoices: 4 decisions');
  // Real Chromium browser smoke tests over CDP, isolated from user profiles.
  const chromePort=14000+Math.floor(Math.random()*1000);
  chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-first-run','--no-default-browser-check','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--remote-debugging-port='+chromePort,'--user-data-dir=/tmp/cmms-cdp-'+TEMP,'about:blank'],{stdio:'ignore'});
