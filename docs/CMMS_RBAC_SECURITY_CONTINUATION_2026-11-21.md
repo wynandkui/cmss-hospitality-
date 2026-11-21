@@ -45,3 +45,11 @@ Date: 2026-11-21 SAST. Added three live assertions to `cmms/tools/integration-rb
 Initial execution reached 56 checks but failed on a test-fixture conflict (HTTP 409) when trying to edit the fixture technician already linked to an existing employee. This was a test setup mistake, not evidence of a product defect. Corrected the password-revocation case to change the disposable administrator's own password. The subsequent execution reported **INTEGRATION PASS 58/58**, including all three new checks, and **Disposable test database removed**. Logs are local at `/tmp/cmms-security-gate-20261121.log` (failed attempt) and `/tmp/cmms-security-gate-20261121-r2.log` (passing run); do not commit raw logs or credentials.
 
 Remaining coverage: live `/api/users/separate` employee-scope revocation, concurrent in-flight request races, and independent authorization matrix review. Passing 58/58 is not production certification.
+
+## Security gate 3 — employee-scope reassignment live acceptance
+
+Extended the disposable integration suite to insert a second synthetic technician account sharing the fixture's `it_person` employee record, then authenticated the original technician and invoked the administrator-only `/api/users/separate` operation. Confirmed HTTP 200, a different committed `person_id`, and HTTP 401 for the original session token. This exercises the post-commit session invalidation added in commit `df52540`.
+
+Observed complete integration run: **INTEGRATION PASS 59/59**, followed by **Disposable test database removed**. Local raw log: `/tmp/cmms-security-gate-separation-20261121.log` (not committed). Temporary test-only `.env` removed on shell exit. No production data used.
+
+Still pending: adversarial concurrent in-flight request tests, broader authorization matrix and formal production-readiness review.

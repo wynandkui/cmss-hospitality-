@@ -151,6 +151,18 @@ try{
  assert.equal((await request('/api/users/status',{method:'POST',cookie:cookies.admin,body:{id:techId,active:true}})).status,200);
  const reenabled=await request('/api/login',{method:'POST',body:{username:users.technician.username,password:pw}});
  assert.equal(reenabled.status,200,'reenabled technician login');
+ // Separation is permitted only when two technicians share an employee record.
+ const secondId=randomUUID();
+ await db.execute('INSERT INTO cmms_users(id,username,password_hash,role,person_id,active) SELECT ?,?,password_hash,role,person_id,1 FROM cmms_users WHERE id=?',[secondId,'it_shared_technician',techId]);
+ const preSeparate=await request('/api/login',{method:'POST',body:{username:users.technician.username,password:pw}});
+ assert.equal(preSeparate.status,200,'pre-separation technician session');
+ const separated=await request('/api/users/separate',{method:'POST',cookie:cookies.admin,body:{id:techId,name:'Isolated Security Test Technician'}});
+ assert.equal(separated.status,200,'separate shared technician record');
+ assert.notEqual(separated.data.personId,'it_person');
+ assert.equal((await request('/api/me',{cookie:preSeparate.cookie})).status,401,'old employee-scope session revoked');
+ const [[separatedUser]]=await db.execute('SELECT person_id FROM cmms_users WHERE id=?',[techId]);
+ assert.equal(separatedUser.person_id,separated.data.personId,'employee link committed');
+ ok('employee separation commits new scope and revokes old session');
  const changed=await request('/api/users',{method:'PATCH',cookie:cookies.admin,body:{id:users.admin.id,username:users.admin.username,role:'admin',personId:'',password:randomBytes(18).toString('hex')}});
  assert.equal(changed.status,200,'admin changes own password');
  assert.equal((await request('/api/me',{cookie:cookies.admin})).status,401,'password change revokes old session');
