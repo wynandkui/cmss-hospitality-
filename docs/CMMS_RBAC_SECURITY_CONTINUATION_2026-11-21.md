@@ -189,3 +189,16 @@ Added a deterministic MariaDB-backed integration check using a disposable future
 ## Gate 24 — read-only media recovery diagnostics (2026-11-21)
 
 Introduced `cmms/server/media-reconciliation.js`, a read-only scanner comparing attachment UUID filenames to database metadata IDs; reports orphaned physical files, missing physical files and unexpected entries (including symbolic links) without following symlinks or modifying files. Added opt-in `cmms/tools/audit-media.mjs` requiring `CMMS_MEDIA_AUDIT=READ_ONLY` plus explicit media directory and DB environment. Nonzero exit status 2 flags discrepancies. Added synthetic unit test for orphan/missing/symlink behavior and preservation of bytes. **Unit/source PASS 101/101**; evidence `/tmp/cmms-gate24-unit.log`. Integration baseline remains 70/70 from Gate 23; migration 10/10, restore 7/7 from earlier gates. Combined latest suite baseline **188/188**. **Important scope:** This gate provides crash-recovery *diagnostics*, not automatic repair or a verified abrupt-kill recovery test. Media directory may contain legitimate non-attachment folders, which are deliberately flagged for operator review; never delete these automatically. Live media and production database were not scanned or modified. Full Gate 24 crash-consistency acceptance remains open pending a controlled process-kill test and documented recovery policy.
+
+### Gate 24 continuation — controlled SIGKILL simulation
+
+Added a second media reconciliation test that launches a disposable Node.js file writer, waits for a marker confirming an attachment UUID file was written, sends actual `SIGKILL`, awaits the child exit, and checks that read-only reconciliation reports the orphan and leaves its bytes intact. The marker is flagged as unexpected rather than deleted. **Unit/source PASS 102/102**, exit 0, evidence `/tmp/cmms-gate24-sigkill-unit.log`. Latest successful integration 70/70, migration 10/10 and restore 7/7; aggregate across latest suite runs **189/189**. **Limitation:** This is a killed *synthetic writer*, not the live CMMS API interrupted at a controlled point; it proves the diagnostic detects an orphan after SIGKILL, not that the CMMS prevents one or automatically repairs it. Gate 24 remains open for a controlled isolated API crash acceptance and a documented human-reviewed recovery policy. No live media or production data touched.
+
+#### Operator recovery policy (proposed, manual-only)
+
+1. Quiesce uploads and deletions; take a consistent database backup and filesystem snapshot before attempting reconciliation.
+2. Run the read-only audit against the *same* database and media directory; save its JSON report and timestamp as evidence.
+3. For each orphaned UUID file, establish provenance and whether an in-flight upload or post-commit deletion caused it. Quarantine only after independent verification and approval; never delete automatically.
+4. For each missing file, investigate backup/snapshot restoration and the related record; do not synthesize bytes or silently delete the metadata.
+5. Review unexpected names and symlinks as possible unrelated content or security concerns. Do not follow symlinks or bulk-clean the directory.
+6. Re-run the read-only audit and document discrepancies resolved or explicitly accepted before resuming writes. This policy is not yet an implemented automated recovery mechanism.

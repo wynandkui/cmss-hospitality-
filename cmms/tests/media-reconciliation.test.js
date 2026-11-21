@@ -19,3 +19,31 @@ test('crash-like orphan and missing media are reported without mutation',async()
   assert.equal(await (await import('node:fs/promises')).readFile(join(root,orphan),'utf8'),'orphan');
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('SIGKILL after physical write leaves a detectable orphan for operator review',async()=>{
+ const {spawn}=await import('node:child_process');
+ const {once}=await import('node:events');
+ const {readFile}=await import('node:fs/promises');
+ const root=await mkdtemp(join(tmpdir(),'cmms-media-kill-'));
+ const orphan='55555555-5555-4555-8555-555555555555';
+ const marker=join(root,'ready.marker');
+ const script=`const fs=require('node:fs');const path=require('node:path');fs.writeFileSync(path.join(process.argv[1],process.argv[2]),'uncommitted-attachment');fs.writeFileSync(path.join(process.argv[1],'ready.marker'),'written');setInterval(()=>{},1000);`;
+ const child=spawn(process.execPath,['-e',script,root,orphan],{stdio:'ignore'});
+ try{
+  let ready=false;
+  for(let attempt=0;attempt<100;attempt++){
+   if(child.exitCode!==null)throw Error('Writer exited before crash injection');
+   try{if(await readFile(marker,'utf8')==='written'){ready=true;break;}}catch{}
+   await new Promise(r=>setTimeout(r,20));
+  }
+  assert.ok(ready,'writer must confirm bytes persisted before kill');
+  child.kill('SIGKILL');
+  const [code,signal]=await once(child,'exit');
+  assert.equal(code,null);assert.equal(signal,'SIGKILL');
+  const report=await reconcileMediaDirectory(root,[]);
+  assert.deepEqual(report.orphaned,[orphan]);
+  assert.deepEqual(report.missing,[]);
+  assert.deepEqual(report.unexpected,['ready.marker']);
+  assert.equal(await readFile(join(root,orphan),'utf8'),'uncommitted-attachment');
+ }finally{if(child.exitCode===null&&!child.killed)child.kill('SIGKILL');await rm(root,{recursive:true,force:true});}
+});
