@@ -52,3 +52,8 @@ Finish Gate 25 **record-level and capability-delegation authorization** for `/ap
 - Added disposable HTTPS reverse-proxy test with ephemeral OpenSSL certificate, loopback listener `127.0.0.1:18443`, real TLS handshake, synthetic admin login/logout, Secure cookie and HTTP-origin rejection.
 - Guarded disposable integration **82/82 PASS**, exit 0, `/tmp/cmms-gate26-real-tls-v2.log`. Latest respective baseline **203/203**; test database, `.env` and TLS private material removed.
 - This is a Node TLS fixture, **not Nginx production acceptance**. Gate 26 remains open for actual reverse-proxy staging and trusted certificate; no production deployment.
+
+## Gate 29 checkpoint — 2026-11-21
+- Post-login technician work-order reassignment immediately denies future asset and inspection media listings/downloads (5 decisions); guarded integration **83/83**, `/tmp/cmms-gate29-reassignment.log`.
+- Latest respective suite baseline **204/204**. Disposable DB and temporary `.env` cleaned.
+- Bounded assessment: `docs/CMMS_GATE29_BOUNDED_READINESS_2026-11-21.md`; release remains blocked by business authorization policy, intended Nginx/trusted TLS staging, operational DR, independent security review and hospitality UAT. Do not equate subsequent-request revocation with cancellation of an already in-flight response.

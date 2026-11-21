@@ -237,6 +237,22 @@ try{
   assert.equal((await request('/api/files?type='+type+'&id=nonexistent',{cookie:cookies.admin})).status,403,'missing record denied');scopeDecisions++;
  }
  ok('record-scoped asset and inspection attachment listings/downloads: '+scopeDecisions+' role decisions');
+
+ // Authorization must track a reassignment after login, without a fresh technician session.
+ const [[beforeReassign]]=await db.query('SELECT data FROM cmms_state WHERE id=1');
+ const changedScope=JSON.parse(beforeReassign.data);
+ changedScope.workOrders.find(w=>w.id==='gate25-own-work-order').assigneeId='gate25-other-employee';
+ await db.execute('UPDATE cmms_state SET data=? WHERE id=1',[JSON.stringify(changedScope)]);
+ for(const type of ['assets','inspections']){
+  const entityId=type==='assets'?ownAsset:ownInspection;
+  assert.equal((await request('/api/files?type='+type+'&id='+entityId,{cookie:cookies.technician})).status,403,'reassigned '+type+' listing denied');
+  const [[fileRow]]=await db.execute('SELECT id FROM cmms_files WHERE entity_type=? AND entity_id=? LIMIT 1',[type,entityId]);
+  assert.equal((await fetch(base+'/api/files/'+fileRow.id,{headers:{Cookie:cookies.technician}})).status,403,'reassigned '+type+' download denied');
+ }
+ assert.equal((await request('/api/files?type=assets&id='+ownAsset,{cookie:cookies.manager})).status,200,'operational manager retains access');
+ await db.execute('UPDATE cmms_state SET data=? WHERE id=1',[beforeReassign.data]);
+ ok('live work-order reassignment revokes technician media scope: 5 decisions');
+
  // Real Chromium browser smoke tests over CDP, isolated from user profiles.
  const chromePort=14000+Math.floor(Math.random()*1000);
  chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-first-run','--no-default-browser-check','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--remote-debugging-port='+chromePort,'--user-data-dir=/tmp/cmms-cdp-'+TEMP,'about:blank'],{stdio:'ignore'});
