@@ -157,6 +157,18 @@ try{
  assert.equal(Number(gate25GlAfter.n),Number(gate25GlBefore.n));
  assert.equal(Number(gate25UsersAfter.n),Number(gate25UsersBefore.n));
  ok('privileged mutation matrix: '+gate25MutationDecisions+' denied requests; state, audit, GL and users unchanged');
+ // Gate 25: sensitive media metadata must be inaccessible to all unprivileged roles.
+ const sensitiveMedia=[['supplier_invoices','gate25-supplier'],['quotes','gate25-quotation']];
+ for(const [type,id] of sensitiveMedia){
+  const anonymous=await request('/api/files?type='+type+'&id='+id);assert.equal(anonymous.status,401,type+' anonymous metadata');
+  for(const role of ['manager','supervisor','coordinator','finance_admin','technician']){
+   const denied=await request('/api/files?type='+type+'&id='+id,{cookie:cookies[role]});
+   assert.equal(denied.status,403,type+' '+role+' metadata must be denied');
+  }
+  const allowed=await request('/api/files?type='+type+'&id='+id,{cookie:cookies.admin});
+  assert.equal(allowed.status,200,type+' admin metadata allowed');assert.ok(Array.isArray(allowed.data.files));
+ }
+ ok('sensitive quotation and supplier-invoice metadata: 14 anonymous, non-admin and admin decisions');
  // Real Chromium browser smoke tests over CDP, isolated from user profiles.
  const chromePort=14000+Math.floor(Math.random()*1000);
  chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-first-run','--no-default-browser-check','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--remote-debugging-port='+chromePort,'--user-data-dir=/tmp/cmms-cdp-'+TEMP,'about:blank'],{stdio:'ignore'});
