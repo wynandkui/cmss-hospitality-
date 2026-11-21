@@ -112,6 +112,13 @@ try{
  let browserContact=false;for(let i=0;i<50;i++){await delay(120);const [[row]]=await db.query('SELECT data FROM cmms_state WHERE id=1');browserContact=JSON.parse(row.data).people.find(p=>p.id===state.people[0].id)?.email==='browser-contact@example.invalid';if(browserContact)break}
  if(!browserContact)throw Error('Coordinator contact browser submit not persisted: '+String(await evaluate('document.getElementById("restrictedError")?.innerText||""')));
  ok('Chromium coordinator employee contact form persists update');ws.close();
- const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(contactUpdated.data.revision)+1);ok('rejected writes do not advance revision beyond authorized browser changes');
+ const financeRevision=(await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies.finance_admin})).data.revision;
+ const costBody={revision:financeRevision,cost:{workOrderId:createdWO.data.workOrderId,category:'services',date:'2026-11-21',description:'External pump service',amount:175.25}};
+ for(const role of ['manager','supervisor','coordinator','technician'])assert.equal((await request('/api/finance/costs/post',{method:'POST',cookie:cookies[role],body:costBody})).status,403);ok('finance posting denied to operational roles');
+ const costPosted=await request('/api/finance/costs/post',{method:'POST',cookie:cookies.finance_admin,body:costBody});assert.equal(costPosted.status,201,JSON.stringify(costPosted.data));ok('finance administrator posts maintenance cost');
+ assert.equal((await request('/api/finance/costs/post',{method:'POST',cookie:cookies.finance_admin,body:costBody})).status,409);ok('stale finance posting rejected');
+ const financeSummary=await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies.finance_admin});assert.equal(financeSummary.status,200);assert.ok(financeSummary.data.report.rows.some(e=>e.id===costPosted.data.costId));ok('finance posting appears in date-filtered report');
+ const [[financeAudit]]=await db.query("SELECT COUNT(*) AS n FROM cmms_audit_events WHERE entity_id=? AND action='post'",[costPosted.data.costId]);assert.ok(Number(financeAudit.n)>=1);ok('finance posting audit recorded');
+ const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(costPosted.data.revision));ok('rejected writes do not advance revision beyond authorized browser changes');
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
