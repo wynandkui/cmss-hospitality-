@@ -205,6 +205,32 @@ try{
  assert.equal((await request('/api/files?type=supplier_invoices&id=gate25-private',{cookie:delegateLogin.cookie})).status,403,'delegated account denied invoice metadata');
  assert.equal((await request('/api/files/'+directInvoiceId,{cookie:delegateLogin.cookie})).status,403,'delegated account denied invoice bytes');
  ok('delegated purchase permission allows quotations but not supplier invoices: 4 decisions');
+ // Gate 25: record-scoped asset and inspection media; technician sees only assigned assets.
+ const [[scopeRow]]=await db.query('SELECT data FROM cmms_state WHERE id=1');
+ const scopeState=JSON.parse(scopeRow.data);
+ const ownAsset='gate25-assigned-asset',otherAsset='gate25-unassigned-asset';
+ const ownInspection='gate25-assigned-inspection',otherInspection='gate25-unassigned-inspection';
+ scopeState.assets=[...(scopeState.assets||[]),{id:ownAsset,name:'Assigned test asset'},{id:otherAsset,name:'Other test asset'}];
+ scopeState.inspections=[...(scopeState.inspections||[]),{id:ownInspection,assetId:ownAsset},{id:otherInspection,assetId:otherAsset}];
+ scopeState.workOrders=[...(scopeState.workOrders||[]),{id:'gate25-own-work-order',assetId:ownAsset,assigneeId:'it_person',title:'Assigned synthetic work order'}];
+ await db.execute('UPDATE cmms_state SET data=? WHERE id=1',[JSON.stringify(scopeState)]);
+ let scopeDecisions=0;
+ for(const [type,entityId,own] of [['assets',ownAsset,true],['assets',otherAsset,false],['inspections',ownInspection,true],['inspections',otherInspection,false]]){
+  const fileId=randomUUID();
+  fs.writeFileSync(syntheticMediaDir+'/'+fileId,'gate25-scoped-attachment',{mode:0o600});
+  await db.execute('INSERT INTO cmms_files (id,entity_type,entity_id,original_name,mime,size_bytes,uploaded_by) VALUES (?,?,?,?,?,?,?)',[fileId,type,entityId,'scope.txt','text/plain',24,users.admin.id]);
+  for(const role of ['admin','manager','supervisor','coordinator','finance_admin','technician']){
+   const expected=role==='admin'||['manager','supervisor','coordinator'].includes(role)||(role==='technician'&&own)?200:403;
+   const listing=await request('/api/files?type='+type+'&id='+entityId,{cookie:cookies[role]});
+   assert.equal(listing.status,expected,type+' '+entityId+' '+role+' listing');scopeDecisions++;
+   const download=await fetch(base+'/api/files/'+fileId,{headers:{Cookie:cookies[role]}});
+   assert.equal(download.status,expected,type+' '+entityId+' '+role+' download');scopeDecisions++;
+  }
+ }
+ for(const type of ['assets','inspections']){
+  assert.equal((await request('/api/files?type='+type+'&id=nonexistent',{cookie:cookies.admin})).status,403,'missing record denied');scopeDecisions++;
+ }
+ ok('record-scoped asset and inspection attachment listings/downloads: '+scopeDecisions+' role decisions');
  // Real Chromium browser smoke tests over CDP, isolated from user profiles.
  const chromePort=14000+Math.floor(Math.random()*1000);
  chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-first-run','--no-default-browser-check','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--remote-debugging-port='+chromePort,'--user-data-dir=/tmp/cmms-cdp-'+TEMP,'about:blank'],{stdio:'ignore'});

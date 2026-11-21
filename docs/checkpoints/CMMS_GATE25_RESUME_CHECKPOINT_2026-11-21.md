@@ -30,3 +30,9 @@ Finish Gate 25 **record-level and capability-delegation authorization** for `/ap
 ## Subsequent continuation — 2026-11-21
 - Added direct file-download authorization matrix (14 decisions) and explicitly delegated quotation permission matrix (4 decisions). Integration suite **79/79**, evidence `/tmp/cmms-gate25-direct-delegated.log`; latest respective aggregate **200/200**.
 - **Unresolved Gate 25 security issue:** asset and inspection attachments are readable by any authenticated role; record ownership not checked. Quotation capability grants global quotation access. Obtain explicit access-policy decision and implement scoped authorization before pilot.
+
+## Attachment scope implementation checkpoint — 2026-11-21
+- Added `cmms/src/media-access.js` and applied scope checks to listing and direct download for asset/inspection attachments.
+- Admin and operational work-order-wide roles can view existing records; finance-only denied; technician limited to assets associated with own assigned work orders, with inspections linked by `assetId`.
+- Disposable MariaDB integration **80/80**; 50 access decisions; `/tmp/cmms-gate25-record-scope.log`; latest respective aggregate **201/201**.
+- Remaining policy: attachment visibility is **asset-level** (not individual work-order-level); global quotation delegation also remains subject to business sign-off. Gate 25 not finally signed off. Continue with Gate 26 TLS staging only after documenting these decisions; do not deploy to production.
