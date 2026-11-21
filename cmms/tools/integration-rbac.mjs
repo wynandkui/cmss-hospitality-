@@ -36,6 +36,23 @@ try{
  assert.match(loginCookie,/HttpOnly/i);assert.match(loginCookie,/SameSite=Strict/i);assert.match(loginCookie,/Path=\/api/i);ok('session cookie security attributes set');
  const logout=await request('/api/logout',{method:'POST',cookie:cookies.admin});assert.equal(logout.status,200);assert.equal((await request('/api/me',{cookie:cookies.admin})).status,401);ok('logout invalidates session token');
  const adminLogin=await request('/api/login',{method:'POST',body:{username:users.admin.username,password:pw}});assert.equal(adminLogin.status,200);cookies.admin=adminLogin.cookie;
+ // Gate 19: attachment delete must commit metadata and audit together.
+ const syntheticFileId=randomUUID(), syntheticAssetId='gate19-synthetic-asset';
+ const syntheticMediaDir='/tmp/cmms-rbac-it-media-'+TEMP;
+ fs.mkdirSync(syntheticMediaDir,{recursive:true,mode:0o700});
+ fs.writeFileSync(syntheticMediaDir+'/'+syntheticFileId,'gate19-synthetic', {mode:0o600});
+ await db.execute('INSERT INTO cmms_files (id,entity_type,entity_id,original_name,mime,size_bytes,uploaded_by) VALUES (?,?,?,?,?,?,?)',[syntheticFileId,'assets',syntheticAssetId,'gate19.txt','text/plain',16,users.admin.id]);
+ const [[auditBeforeDelete]]=await db.query("SELECT COUNT(*) AS n FROM cmms_audit_events WHERE category='media' AND action='delete' AND entity_id=?",[syntheticAssetId]);
+ const deleteResponse=await request('/api/files/'+syntheticFileId,{method:'DELETE',cookie:cookies.admin});
+ assert.equal(deleteResponse.status,200,'authorized deletion');
+ const [[remainingAttachment]]=await db.query('SELECT COUNT(*) AS n FROM cmms_files WHERE id=?',[syntheticFileId]);
+ const [[auditAfterDelete]]=await db.query("SELECT COUNT(*) AS n FROM cmms_audit_events WHERE category='media' AND action='delete' AND entity_id=?",[syntheticAssetId]);
+ assert.equal(Number(remainingAttachment.n),0,'attachment metadata deleted');
+ assert.equal(Number(auditAfterDelete.n),Number(auditBeforeDelete.n)+1,'audit row committed with deletion');
+ assert.equal(fs.existsSync(syntheticMediaDir+'/'+syntheticFileId),false,'attachment bytes removed');
+ assert.equal((await request('/api/files/'+syntheticFileId,{method:'DELETE',cookie:cookies.admin})).status,404,'repeated deletion fails closed');
+ ok('authorized attachment delete commits audit and metadata, removes bytes, rejects duplicate');
+
 
  for(const role of ['manager','supervisor','coordinator']){const r=await request('/api/operational/work-orders',{cookie:cookies[role]});assert.equal(r.status,200,role);assert.ok(Array.isArray(r.data.workOrders));assert.ok(!('people' in r.data));}ok('operational projection permits only intended roles');
  for(const role of ['finance_admin','technician'])assert.equal((await request('/api/operational/work-orders',{cookie:cookies[role]})).status,403);ok('operational projection denies finance and technician');
