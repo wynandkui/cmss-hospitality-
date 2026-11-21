@@ -80,3 +80,6 @@ Audit current route authorization and implement tested role policy without chang
 
 | 2026-11-21 | Disposable database `CMMS_RBAC_IT_*`, isolated port 3097 | Lenovo Linux Mint | Six-role authenticated HTTP API integration: operational/finance projections, manager creation, supervisor assignment, unauthorized requests, stale revisions, audit and journal persistence | PASS | 20/20 integration checks; disposable database dropped on completion. `npm run test:integration:rbac`. |
 | 2026-11-21 | Source regression suite | Lenovo Linux Mint | Unit/security tests and static build | PASS | 80/80 automated tests; `npm run build` successful. Production DB not changed. |
+
+| 2026-11-21 | Disposable `CMMS_ROLE_IT_*` MariaDB database | Lenovo Linux Mint | Six-role schema compatibility, legacy migration, idempotence, credential preservation, guarded rollback and full restoration | PASS | 10/10 checks; database dropped after test; `npm run test:migration:roles`. |
+| 2026-11-21 | Restricted front-end workspaces | Lenovo Linux Mint | Manager/supervisor/coordinator/finance-admin allowlisted UI, escaped operational display and role-specific actions | PASS (unit) | 83/83 unit tests after updating operational projection contract; build and 20/20 isolated API integration checks passed. Interactive browser acceptance remains outstanding. |

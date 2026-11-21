@@ -3,7 +3,7 @@ import {requireAccess} from './role-policy.js';
 // Read-only operational API projection; never expose the unrestricted state document.
 export function projectOperationalWorkOrders(source,session){
  requireAccess(session,'workOrders.readAll');
- const orders=(source.workOrders||[]).map(w=>({id:w.id,number:w.number,status:w.status,priority:w.priority,description:w.description,assetId:w.assetId,locationId:w.locationId,assigneeId:w.assigneeId,createdAt:w.createdAt,dueDate:w.dueDate,completedAt:w.completedAt}));
+ const orders=(source.workOrders||[]).map(w=>({id:w.id,number:w.number,code:w.code,title:w.title,status:w.status,priority:w.priority,description:w.description,assetId:w.assetId,locationId:w.locationId,assigneeId:w.assigneeId,createdAt:w.createdAt,dueDate:w.dueDate,completedAt:w.completedAt}));
  const assetIds=new Set(orders.map(w=>w.assetId).filter(Boolean));
  const locationIds=new Set(orders.map(w=>w.locationId).filter(Boolean));
  return {
