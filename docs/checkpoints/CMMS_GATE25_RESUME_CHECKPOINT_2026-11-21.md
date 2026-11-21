@@ -47,3 +47,8 @@ Finish Gate 25 **record-level and capability-delegation authorization** for `/ap
 - Replaced forged Host fetch probe with raw `node:http` Host override. Guarded integration **81/81**, evidence `/tmp/cmms-gate26-host-retest.log`; disposable DB and `.env` cleaned.
 - Latest respective successful aggregate **202/202**.
 - Prepared `cmms/deploy/staging/nginx.conf` and README for TLS terminator; **not deployed**. Nginx unavailable on laptop; actual TLS handshake remains a Gate 26 blocker.
+
+## Gate 26 actual loopback TLS continuation — 2026-11-21
+- Added disposable HTTPS reverse-proxy test with ephemeral OpenSSL certificate, loopback listener `127.0.0.1:18443`, real TLS handshake, synthetic admin login/logout, Secure cookie and HTTP-origin rejection.
+- Guarded disposable integration **82/82 PASS**, exit 0, `/tmp/cmms-gate26-real-tls-v2.log`. Latest respective baseline **203/203**; test database, `.env` and TLS private material removed.
+- This is a Node TLS fixture, **not Nginx production acceptance**. Gate 26 remains open for actual reverse-proxy staging and trusted certificate; no production deployment.

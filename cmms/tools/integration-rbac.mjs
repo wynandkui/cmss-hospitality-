@@ -1,6 +1,10 @@
 // Disposable MariaDB integration test. NEVER target the production database.
 import fs from 'node:fs';
 import {request as httpRequest} from 'node:http';
+import {createServer as createHttpsServer, request as httpsRequest} from 'node:https';
+import {execFileSync} from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {randomBytes,randomUUID,scryptSync} from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -534,7 +538,7 @@ try{
  ok('actual isolated API SIGKILL after attachment write leaves detectable uncommitted orphan');
  // Gate 26: restart disposable API in explicitly configured TLS-terminator mode.
  // Transport remains loopback HTTP here; this tests application cookie/origin behavior only.
- child=spawn(process.execPath,['server/api.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,...env,DB_NAME:TEMP,CMMS_PORT:'3097',CMMS_BIND:'127.0.0.1',CMMS_MEDIA_DIR:'/tmp/cmms-rbac-it-media-'+TEMP,CMMS_HTTPS:'true',CMMS_ALLOWED_HOSTS:'127.0.0.1:3097'},stdio:'ignore'});
+ child=spawn(process.execPath,['server/api.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,...env,DB_NAME:TEMP,CMMS_PORT:'3097',CMMS_BIND:'127.0.0.1',CMMS_MEDIA_DIR:'/tmp/cmms-rbac-it-media-'+TEMP,CMMS_HTTPS:'true',CMMS_ALLOWED_HOSTS:'127.0.0.1:3097,localhost:18443'},stdio:'ignore'});
  let tlsModeReady=false;for(let i=0;i<60;i++){if(child.exitCode!==null)throw Error('TLS-mode API exited');try{const r=await request('/api/status');if(r.status===200&&r.data.database===true){tlsModeReady=true;break}}catch{}await delay(200)}assert.ok(tlsModeReady,'TLS-terminator mode API ready');
  const tlsLogin=await fetch(base+'/api/login',{method:'POST',headers:{Origin:'https://127.0.0.1:3097','Content-Type':'application/json'},body:JSON.stringify({username:users.admin.username,password:pw})});
  assert.equal(tlsLogin.status,200,'configured HTTPS origin accepted');
@@ -547,5 +551,29 @@ try{
  assert.equal(tlsLogout.status,200,'HTTPS origin logout accepted');
  assert.match(tlsLogout.headers.get('set-cookie')||'',/(?:^|;\s*)Secure(?:;|$)/i);
  ok('HTTPS-configured cookie Secure flag and origin enforcement, including logout');
+ // Actual TLS handshake over loopback with a disposable certificate and a reverse proxy.
+ // This does not assert that Nginx itself has been deployed.
+ const tlsDir=fs.mkdtempSync(path.join(os.tmpdir(),'cmms-gate26-tls-'));
+ let proxy;
+ try{
+  execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-keyout',tlsDir+'/key.pem','-out',tlsDir+'/cert.pem','-days','1','-subj','/CN=localhost'],{stdio:'ignore'});
+  proxy=createHttpsServer({key:fs.readFileSync(tlsDir+'/key.pem'),cert:fs.readFileSync(tlsDir+'/cert.pem')},(incoming,outgoing)=>{
+   const upstream=httpRequest('http://127.0.0.1:3097'+incoming.url,{method:incoming.method,headers:{...incoming.headers,host:'localhost:18443'}},response=>{outgoing.writeHead(response.statusCode,response.headers);response.pipe(outgoing)});
+   upstream.on('error',()=>{if(!outgoing.headersSent)outgoing.writeHead(502);outgoing.end()});incoming.pipe(upstream);
+  });
+  await new Promise((resolve,reject)=>{proxy.once('error',reject);proxy.listen(18443,'127.0.0.1',resolve)});
+  const tlsProbe=(route,headers={},method='GET',payload)=>new Promise((resolve,reject)=>{
+   const req=httpsRequest('https://127.0.0.1:18443'+route,{rejectUnauthorized:false,method,headers:{Host:'localhost:18443',...headers}},response=>{const chunks=[];response.on('data',c=>chunks.push(c));response.on('end',()=>resolve({status:response.statusCode,headers:response.headers,body:Buffer.concat(chunks)}))});req.on('error',reject);if(payload)req.write(payload);req.end();
+  });
+  const status=await tlsProbe('/api/status');assert.equal(status.status,200);assert.equal(JSON.parse(status.body).database,true);
+  const loginBody=JSON.stringify({username:users.admin.username,password:pw});
+  const login=await tlsProbe('/api/login',{Origin:'https://localhost:18443','Content-Type':'application/json','Content-Length':Buffer.byteLength(loginBody)},'POST',loginBody);
+  assert.equal(login.status,200,'real TLS proxy login');assert.match(login.headers['set-cookie']?.[0]||'',/Secure/);
+  const badOrigin=await tlsProbe('/api/logout',{Origin:'http://localhost:18443',Cookie:login.headers['set-cookie'][0].split(';')[0]},'POST');assert.equal(badOrigin.status,403);
+  const badHost=await tlsProbe('/api/status',{Host:'attacker.invalid'});assert.equal(badHost.status,200,'proxy pins upstream Host rather than trusting client Host');
+  const logout=await tlsProbe('/api/logout',{Origin:'https://localhost:18443',Cookie:login.headers['set-cookie'][0].split(';')[0]},'POST');assert.equal(logout.status,200);
+  ok('real loopback TLS handshake, proxied login/logout, secure cookie and origin rejection');
+ }finally{if(proxy)await new Promise(resolve=>proxy.close(resolve));fs.rmSync(tlsDir,{recursive:true,force:true});}
+
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
