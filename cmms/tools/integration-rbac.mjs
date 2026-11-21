@@ -12,7 +12,7 @@ if(env.DB_NAME!=='CMMS_putterdb')throw Error('Unexpected source configuration; s
 const TEMP='CMMS_RBAC_IT_'+randomBytes(5).toString('hex');
 const config={host:env.DB_HOST,port:Number(env.DB_PORT||3306),user:env.DB_USER,password:env.DB_PASSWORD};
 const conn=await mysql.createConnection(config);
-let child,created=false,passes=0;
+let child,chrome,created=false,passes=0;
 const ok=(name)=>{passes++;console.log('PASS '+name)};
 const base='http://127.0.0.1:3097';
 async function request(path,{method='GET',cookie,body}={}){const r=await fetch(base+path,{method,headers:{...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});let data={};try{data=await r.json()}catch{}return {status:r.status,data,cookie:r.headers.get('set-cookie')?.split(';')[0]};}
@@ -33,6 +33,27 @@ try{
  for(const role of ['finance_admin','technician'])assert.equal((await request('/api/operational/work-orders',{cookie:cookies[role]})).status,403);ok('operational projection denies finance and technician');
  for(const role of ['finance_admin','admin'])assert.equal((await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies[role]})).status,200);for(const role of ['manager','supervisor','coordinator','technician'])assert.equal((await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies[role]})).status,403);ok('finance role separation');
  for(const role of ['manager','supervisor','coordinator','finance_admin'])assert.equal((await request('/api/state',{cookie:cookies[role]})).status,403);ok('legacy full state fails closed');
+ // Real Chromium browser smoke tests over CDP, isolated from user profiles.
+ const chromePort=14000+Math.floor(Math.random()*1000);
+ chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-first-run','--no-default-browser-check','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--remote-debugging-port='+chromePort,'--user-data-dir=/tmp/cmms-cdp-'+TEMP,'about:blank'],{stdio:'ignore'});
+ let pageTarget;for(let i=0;i<60;i++){try{const list=await (await fetch('http://127.0.0.1:'+chromePort+'/json')).json();pageTarget=list.find(x=>x.type==='page'&&x.webSocketDebuggerUrl);if(pageTarget)break}catch{}await delay(150)}assert.ok(pageTarget,'Chrome CDP target');
+ const ws=new WebSocket(pageTarget.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{ws.addEventListener('open',resolve,{once:true});ws.addEventListener('error',reject,{once:true})});
+ let seq=0;const pending=new Map();ws.addEventListener('message',ev=>{const x=JSON.parse(ev.data);if(x.id&&pending.has(x.id)){const {resolve,reject}=pending.get(x.id);pending.delete(x.id);x.error?reject(Error(x.error.message)):resolve(x.result)}});
+ const cdp=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));});
+ const evaluate=async expression=>{const result=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error(result.exceptionDetails.text);return result.result?.value};
+ await cdp('Page.enable');await cdp('Network.enable');
+ for(const role of ['manager','supervisor','coordinator','finance_admin','technician','admin']){
+  await cdp('Network.clearBrowserCookies');await cdp('Network.setCookie',{name:'cmms_session',value:cookies[role].split('=')[1],url:base+'/api/me',path:'/api',httpOnly:true,sameSite:'Strict'});
+  await cdp('Page.navigate',{url:base+'/'});
+  let content='';for(let i=0;i<65;i++){await delay(140);content=await evaluate('document.getElementById("app")?.innerText||""');if(content.includes(role==='finance_admin'?'Finance summary':role==='technician'?'MariaDB':role==='admin'?'MariaDB':'Operational work orders'))break;}
+  assert.ok(content.includes(role==='finance_admin'?'Finance summary':role==='technician'?'MariaDB':role==='admin'?'MariaDB':'Operational work orders'),'Chrome rendered '+role+': '+content.slice(0,140));
+  if(role==='manager'){assert.ok(content.includes('Create work order'));assert.ok(!content.includes('Assign work order'));}
+  if(role==='supervisor'){assert.ok(content.includes('Assign work order'));assert.ok(!content.includes('Create work order'));}
+  if(role==='coordinator'){assert.ok(!content.includes('Create work order')&&!content.includes('Assign work order'));}
+  if(role==='finance_admin'){assert.ok(!content.includes('Operational work orders'));}
+  ok('Chromium browser renders '+role+' authorized workspace');
+ }
+ ws.close();
  const revision=(await request('/api/operational/work-orders',{cookie:cookies.manager})).data.revision;
  const createBody={revision,workOrder:{title:'Disposable integration pump test',priority:'High'}};
  for(const role of ['supervisor','coordinator','finance_admin','technician'])assert.equal((await request('/api/operational/work-orders/create',{method:'POST',cookie:cookies[role],body:createBody})).status,403);ok('unauthorized work order creation rejected');
@@ -52,4 +73,4 @@ try{
  const badFinance=await request('/api/finance/summary?start=2026-11-30&end=2026-11-01',{cookie:cookies.finance_admin});assert.equal(badFinance.status,400);ok('invalid finance date range rejected');
  const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(assigned.data.revision));ok('rejected writes do not advance revision');
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
-}catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
+}catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
