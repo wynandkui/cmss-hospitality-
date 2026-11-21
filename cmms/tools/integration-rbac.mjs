@@ -52,6 +52,21 @@ try{
  assert.equal(fs.existsSync(syntheticMediaDir+'/'+syntheticFileId),false,'attachment bytes removed');
  assert.equal((await request('/api/files/'+syntheticFileId,{method:'DELETE',cookie:cookies.admin})).status,404,'repeated deletion fails closed');
  ok('authorized attachment delete commits audit and metadata, removes bytes, rejects duplicate');
+ // Gate 20: inject an audit write failure and require atomic rollback.
+ const rollbackFileId=randomUUID(),rollbackAssetId='gate20-rollback-asset';
+ fs.writeFileSync(syntheticMediaDir+'/'+rollbackFileId,'gate20-rollback', {mode:0o600});
+ await db.execute('INSERT INTO cmms_files (id,entity_type,entity_id,original_name,mime,size_bytes,uploaded_by) VALUES (?,?,?,?,?,?,?)',[rollbackFileId,'assets',rollbackAssetId,'gate20.txt','text/plain',15,users.admin.id]);
+ const triggerName='cmms_it_fail_media_delete';
+ await db.query("CREATE TRIGGER "+triggerName+" BEFORE INSERT ON cmms_audit_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Synthetic audit failure'");
+ let failedDelete;
+ try{failedDelete=await request('/api/files/'+rollbackFileId,{method:'DELETE',cookie:cookies.admin});}
+ finally{await db.query('DROP TRIGGER IF EXISTS '+triggerName);}
+ assert.ok(failedDelete.status>=500,'injected audit failure must reject deletion');
+ const [[preserved]]=await db.query('SELECT COUNT(*) AS n FROM cmms_files WHERE id=?',[rollbackFileId]);
+ assert.equal(Number(preserved.n),1,'failed audit must roll back metadata deletion');
+ assert.equal(fs.existsSync(syntheticMediaDir+'/'+rollbackFileId),true,'failed audit must preserve file bytes');
+ ok('injected audit failure rolls back attachment delete and preserves bytes');
+
 
 
  for(const role of ['manager','supervisor','coordinator']){const r=await request('/api/operational/work-orders',{cookie:cookies[role]});assert.equal(r.status,200,role);assert.ok(Array.isArray(r.data.workOrders));assert.ok(!('people' in r.data));}ok('operational projection permits only intended roles');
