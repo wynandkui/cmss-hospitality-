@@ -111,7 +111,7 @@ try{
  await evaluate('(()=>{const f=document.getElementById("restrictedPeopleContact");f.elements.namedItem("personId").value='+JSON.stringify(state.people[0].id)+';f.elements.namedItem("email").value="browser-contact@example.invalid";f.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));return "submitted"})()');
  let browserContact=false;for(let i=0;i<50;i++){await delay(120);const [[row]]=await db.query('SELECT data FROM cmms_state WHERE id=1');browserContact=JSON.parse(row.data).people.find(p=>p.id===state.people[0].id)?.email==='browser-contact@example.invalid';if(browserContact)break}
  if(!browserContact)throw Error('Coordinator contact browser submit not persisted: '+String(await evaluate('document.getElementById("restrictedError")?.innerText||""')));
- ok('Chromium coordinator employee contact form persists update');ws.close();
+ ok('Chromium coordinator employee contact form persists update');
  const financeRevision=(await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies.finance_admin})).data.revision;
  const costBody={revision:financeRevision,cost:{workOrderId:createdWO.data.workOrderId,category:'services',date:'2026-11-21',description:'External pump service',amount:175.25}};
  for(const role of ['manager','supervisor','coordinator','technician'])assert.equal((await request('/api/finance/costs/post',{method:'POST',cookie:cookies[role],body:costBody})).status,403);ok('finance posting denied to operational roles');
@@ -119,6 +119,19 @@ try{
  assert.equal((await request('/api/finance/costs/post',{method:'POST',cookie:cookies.finance_admin,body:costBody})).status,409);ok('stale finance posting rejected');
  const financeSummary=await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies.finance_admin});assert.equal(financeSummary.status,200);assert.ok(financeSummary.data.report.rows.some(e=>e.id===costPosted.data.costId));ok('finance posting appears in date-filtered report');
  const [[financeAudit]]=await db.query("SELECT COUNT(*) AS n FROM cmms_audit_events WHERE entity_id=? AND action='post'",[costPosted.data.costId]);assert.ok(Number(financeAudit.n)>=1);ok('finance posting audit recorded');
- const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(costPosted.data.revision));ok('rejected writes do not advance revision beyond authorized browser changes');
+ await cdp('Network.clearBrowserCookies');
+ await cdp('Network.setCookie',{name:'cmms_session',value:cookies.finance_admin.split('=')[1],url:base+'/api/me',path:'/api',httpOnly:true,sameSite:'Strict'});
+ await cdp('Page.navigate',{url:base+'/'});
+ let financeFormReady=false;
+ for(let i=0;i<60;i++){await delay(120);financeFormReady=await evaluate('!!document.getElementById("restrictedCostPost")');if(financeFormReady)break}
+ assert.ok(financeFormReady,'finance form available in browser');
+ const expression=`(()=>{const f=document.getElementById('restrictedCostPost');f.elements.namedItem('workOrderId').value=${JSON.stringify(createdWO.data.workOrderId)};f.elements.namedItem('category').value='services';f.elements.namedItem('date').value='2026-11-21';f.elements.namedItem('description').value='Browser maintenance service';f.elements.namedItem('amount').value='240.50';f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));return true})()`;
+ await evaluate(expression);
+ let financeSaved=false;
+ for(let i=0;i<60;i++){await delay(120);const [[r]]=await db.query('SELECT data FROM cmms_state WHERE id=1');financeSaved=JSON.parse(r.data).costEntries.some(e=>e.description==='Browser maintenance service'&&e.amount===240.5);if(financeSaved)break}
+ assert.ok(financeSaved,'finance form submission persisted to disposable database');
+ ok('Chromium finance form posts persisted maintenance cost');
+ ws.close();
+ const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(costPosted.data.revision)+1);ok('rejected writes do not advance revision beyond authorized browser changes');
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
