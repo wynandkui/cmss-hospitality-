@@ -38,3 +38,21 @@ test('technician state excludes audit history and private settings',()=>{
  assert.deepEqual(p.audit,[]);
  assert.deepEqual(p.settings,{facility:'Resort'});
 });
+
+test('foreign work-order ID is rejected without mutating either record',()=>{
+ const original=structuredClone(source);
+ const snapshot=structuredClone(original);
+ const own=projectStateForSession(original,{role:'technician',personId:'p1'});
+ own.workOrders[0].completionNotes='Authorized technician update';
+ own.workOrders.push({id:'b',assigneeId:'p2',completionNotes:'Forged foreign update'});
+ assert.throws(()=>mergeTechnicianState(original,own,{role:'technician',personId:'p1'}),{status:403,message:'Work order scope mismatch'});
+ assert.deepEqual(original,snapshot);
+});
+
+test('foreign work-order replacement is rejected without modifying source',()=>{
+ const original=structuredClone(source);
+ const snapshot=structuredClone(original);
+ const forged={workOrders:[{id:'b',assigneeId:'p2',status:'Completed'}]};
+ assert.throws(()=>mergeTechnicianState(original,forged,{role:'technician',personId:'p1'}),{status:403});
+ assert.deepEqual(original,snapshot);
+});
