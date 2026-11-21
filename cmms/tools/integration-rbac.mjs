@@ -367,5 +367,29 @@ try{
 
 
 
+ // Gate 24: kill the actual isolated CMMS API after its file write, before DB insert.
+ await db.execute('UPDATE cmms_users SET password_hash=? WHERE id=?',[hash,users.admin.id]);
+ child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL');
+ child=spawn(process.execPath,['server/api.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,...env,DB_NAME:TEMP,CMMS_PORT:'3097',CMMS_BIND:'127.0.0.1',CMMS_MEDIA_DIR:'/tmp/cmms-rbac-it-media-'+TEMP,CMMS_RUN_DISPOSABLE_INTEGRATION:'YES',CMMS_TEST_CRASH_AFTER_MEDIA_WRITE:'YES'},stdio:'ignore'});
+ let crashReady=false;for(let i=0;i<60;i++){if(child.exitCode!==null)throw Error('Crash API exited before ready');try{const r=await request('/api/status');if(r.status===200&&r.data.database===true){crashReady=true;break}}catch{}await delay(200)}assert.ok(crashReady,'crash-injection API ready');
+ const crashLogin=await request('/api/login',{method:'POST',body:{username:users.admin.username,password:pw}});assert.equal(crashLogin.status,200);
+ const crashMediaDir='/tmp/cmms-rbac-it-media-'+TEMP;
+ const beforeCrash=new Set(fs.readdirSync(crashMediaDir).filter(x=>/^[a-f0-9-]{36}$/.test(x)));
+ const crashUpload=fetch(base+'/api/files?type=assets&id='+uploadAssetId+'&name=gate24-crash.txt',{method:'POST',headers:{Cookie:crashLogin.cookie,'Content-Type':'text/plain'},body:'gate24-real-api-crash-bytes'}).catch(e=>e);
+ for(let i=0;i<100&&!fs.existsSync(crashMediaDir+'/crash-marker');i++)await delay(30);
+ assert.ok(fs.existsSync(crashMediaDir+'/crash-marker'),'API wrote crash marker after file write');
+ await crashUpload;
+ for(let i=0;i<100&&child.exitCode===null;i++)await delay(30);
+ assert.equal(child.signalCode,'SIGKILL','actual API terminated by SIGKILL');
+ const crashFiles=fs.readdirSync(crashMediaDir).filter(x=>/^[a-f0-9-]{36}$/.test(x)&&!beforeCrash.has(x));
+ assert.equal(crashFiles.length,1,'exactly one physical file from crashed upload');
+ const [[crashRow]]=await db.execute('SELECT COUNT(*) AS n FROM cmms_files WHERE id=?',[crashFiles[0]]);
+ assert.equal(Number(crashRow.n),0,'crashed upload never committed metadata');
+ assert.equal(fs.readFileSync(crashMediaDir+'/'+crashFiles[0],'utf8'),'gate24-real-api-crash-bytes');
+ const {reconcileMediaDirectory}=await import('../server/media-reconciliation.js');
+ const [allMediaRows]=await db.query('SELECT id FROM cmms_files');
+ const crashReport=await reconcileMediaDirectory(crashMediaDir,allMediaRows.map(r=>r.id));
+ assert.ok(crashReport.orphaned.includes(crashFiles[0]),'read-only reconciliation detects real API crash orphan');
+ ok('actual isolated API SIGKILL after attachment write leaves detectable uncommitted orphan');
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
