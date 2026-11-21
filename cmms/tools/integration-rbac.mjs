@@ -169,6 +169,17 @@ try{
   assert.equal(allowed.status,200,type+' admin metadata allowed');assert.ok(Array.isArray(allowed.data.files));
  }
  ok('sensitive quotation and supplier-invoice metadata: 14 anonymous, non-admin and admin decisions');
+ // Gate 25: a technician may read only their own photo; other roles need explicit policy.
+ const ownPhoto=await request('/api/technician-photo/'+users.technician.id,{cookie:cookies.technician});
+ assert.equal(ownPhoto.status,404,'own technician photo lookup permitted, absent fixture');
+ for(const role of ['manager','supervisor','coordinator','finance_admin']){
+  assert.equal((await request('/api/technician-photo/'+users.technician.id,{cookie:cookies[role]})).status,403,role+' cannot read technician photo');
+ }
+ const otherTechId=randomUUID();
+ assert.equal((await request('/api/technician-photo/'+otherTechId,{cookie:cookies.technician})).status,403,'technician cannot enumerate other photos');
+ assert.equal((await request('/api/technician-photo/'+users.technician.id)).status,401,'anonymous photo read denied');
+ assert.equal((await request('/api/technician-photo/'+users.technician.id,{cookie:cookies.admin})).status,404,'admin photo lookup permitted');
+ ok('technician photo ownership and role access: 8 decisions');
  // Real Chromium browser smoke tests over CDP, isolated from user profiles.
  const chromePort=14000+Math.floor(Math.random()*1000);
  chrome=spawn('/usr/bin/google-chrome',['--headless=new','--no-first-run','--no-default-browser-check','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--remote-debugging-port='+chromePort,'--user-data-dir=/tmp/cmms-cdp-'+TEMP,'about:blank'],{stdio:'ignore'});
