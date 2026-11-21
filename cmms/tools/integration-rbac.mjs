@@ -167,6 +167,27 @@ try{
  assert.equal(changed.status,200,'admin changes own password');
  assert.equal((await request('/api/me',{cookie:cookies.admin})).status,401,'password change revokes old session');
  ok('password change revokes authenticated session');
+ // Negative authorization matrix: no mutation on forbidden calls.
+ const [[matrixBefore]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ const forbiddenRoutes=[
+  ['/api/users/status','POST',{id:techId,active:false}],
+  ['/api/users/separate','POST',{id:techId,name:'Forbidden'}],
+  ['/api/users','PATCH',{id:techId,username:'forbidden',role:'admin',personId:''}],
+  ['/api/permissions','PATCH',{id:techId,permissions:{}}],
+  ['/api/audit/settings','PATCH',{category:'users',enabled:false}],
+ ];
+ for(const [path,method,body] of forbiddenRoutes){
+  assert.equal((await request(path,{method,body})).status,401,'anonymous denied '+path);
+  assert.equal((await request(path,{method,cookie:cookies.manager,body})).status,403,'manager denied '+path);
+ }
+ const [[matrixAfter]]=await db.query('SELECT revision,data FROM cmms_state WHERE id=1');
+ assert.equal(Number(matrixAfter.revision),Number(matrixBefore.revision));
+ assert.equal(matrixAfter.data,matrixBefore.data);
+ ok('ten anonymous and manager mutation attempts denied; state unchanged');
+ // Simultaneous read requests must all reject a revoked token after a completed update.
+ const staleRequests=await Promise.all(Array.from({length:12},()=>request('/api/me',{cookie:preSeparate.cookie})));
+ assert.ok(staleRequests.every(r=>r.status===401),'all post-revocation concurrent reads fail closed');
+ ok('twelve concurrent stale-token requests denied');
  const [[beforePermission]]=await db.execute('SELECT permissions FROM cmms_users WHERE id=?',[techId]);
  const freshLogin=await request('/api/login',{method:'POST',body:{username:users.manager.username,password:pw}});
  assert.equal(freshLogin.status,200);

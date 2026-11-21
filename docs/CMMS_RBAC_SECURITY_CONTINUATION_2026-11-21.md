@@ -53,3 +53,9 @@ Extended the disposable integration suite to insert a second synthetic technicia
 Observed complete integration run: **INTEGRATION PASS 59/59**, followed by **Disposable test database removed**. Local raw log: `/tmp/cmms-security-gate-separation-20261121.log` (not committed). Temporary test-only `.env` removed on shell exit. No production data used.
 
 Still pending: adversarial concurrent in-flight request tests, broader authorization matrix and formal production-readiness review.
+
+## Security gate 4 — negative authorization matrix and concurrent stale-token reads
+
+Added five administrative mutation routes to the live disposable integration matrix: account status, technician separation, account edit, permission edit, and audit settings. For each route, an unauthenticated request was rejected with HTTP 401 and a manager request with HTTP 403 (ten denied mutations). Compared serialized `cmms_state` and revision before/after; both unchanged. After technician employee-scope reassignment revoked its old token, issued twelve concurrent `/api/me` requests with that token and confirmed twelve HTTP 401 responses.
+
+Observed **INTEGRATION PASS 61/61** and **Disposable test database removed**. Temporary `.env` removed. Raw local log: `/tmp/cmms-security-gate-matrix-20261121.log` (not committed). Tests demonstrate *post-revocation* concurrency, not an in-flight request/revocation race. In-flight race and comprehensive authorization matrix remain open before production certification.
