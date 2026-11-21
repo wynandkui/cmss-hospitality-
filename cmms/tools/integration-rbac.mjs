@@ -214,6 +214,30 @@ try{
  const [[separatedUser]]=await db.execute('SELECT person_id FROM cmms_users WHERE id=?',[techId]);
  assert.equal(separatedUser.person_id,separated.data.personId,'employee link committed');
  ok('employee separation commits new scope and revokes old session');
+ // Gate 23: period closure and journal posting must serialize on the period row.
+ const accountingPeriod='2027-02',postingDate=accountingPeriod+'-15';
+ const accountingBody={date:postingDate,description:'Gate23 blocked posting',lines:[{account:'5000',debit:19.25,credit:0},{account:'2000',debit:0,credit:19.25}]};
+ await db.execute('INSERT INTO cmms_accounting_periods(period,status) VALUES (?,?)',[accountingPeriod,'open']);
+ const periodLock=await mysql.createConnection({...config,database:TEMP});
+ let closeResult,postResult;
+ try{
+  await periodLock.beginTransaction();
+  await periodLock.execute('SELECT status FROM cmms_accounting_periods WHERE period=? FOR UPDATE',[accountingPeriod]);
+  const pendingClose=request('/api/accounting/periods/close',{method:'POST',cookie:cookies.admin,body:{period:accountingPeriod}});
+  await delay(250);
+  const pendingPost=request('/api/accounting/journals',{method:'POST',cookie:cookies.admin,body:accountingBody});
+  await delay(250);
+  await periodLock.commit();
+  closeResult=await pendingClose;
+  postResult=await pendingPost;
+ }finally{await periodLock.rollback().catch(()=>{});await periodLock.end();}
+ assert.equal(closeResult.status,200,'period closure should succeed');
+ assert.equal(postResult.status,409,'posting after closure must fail');
+ const [[closedPeriod]]=await db.execute('SELECT status FROM cmms_accounting_periods WHERE period=?',[accountingPeriod]);
+ assert.equal(closedPeriod.status,'closed');
+ const [[blockedJournalCount]]=await db.execute('SELECT COUNT(*) AS n FROM cmms_gl_journals WHERE period=?',[accountingPeriod]);
+ assert.equal(Number(blockedJournalCount.n),0,'closed period must not receive a journal');
+ ok('concurrent period close serializes before posting and prevents journal');
  const changed=await request('/api/users',{method:'PATCH',cookie:cookies.admin,body:{id:users.admin.id,username:users.admin.username,role:'admin',personId:'',password:randomBytes(18).toString('hex')}});
  assert.equal(changed.status,200,'admin changes own password');
  assert.equal((await request('/api/me',{cookie:cookies.admin})).status,401,'password change revokes old session');
@@ -340,6 +364,8 @@ try{
  assert.equal(afterDeadlockA.active,beforeDeadlockA.active);
  assert.equal(afterDeadlockB.active,beforeDeadlockB.active);
  ok('opposing account row locks trigger deadlock detection without committed changes');
+
+
 
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
