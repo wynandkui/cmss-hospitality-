@@ -15,7 +15,7 @@ const conn=await mysql.createConnection(config);
 let child,chrome,created=false,passes=0;
 const ok=(name)=>{passes++;console.log('PASS '+name)};
 const base='http://127.0.0.1:3097';
-async function request(path,{method='GET',cookie,body}={}){const r=await fetch(base+path,{method,headers:{...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});let data={};try{data=await r.json()}catch{}return {status:r.status,data,cookie:r.headers.get('set-cookie')?.split(';')[0]};}
+async function request(path,{method='GET',cookie,body}={}){const r=await fetch(base+path,{method,headers:{...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});let data={};try{data=await r.json()}catch{}return {status:r.status,data,cookie:r.headers.get('set-cookie')?.split(';')[0],setCookie:r.headers.get('set-cookie')};}
 try{
  await conn.query('CREATE DATABASE `'+TEMP+'`');created=true;
  const [tables]=await conn.query('SHOW TABLES FROM `'+SOURCE+'`');
@@ -28,7 +28,15 @@ try{
  let ready=false;for(let i=0;i<60;i++){if(child.exitCode!==null)throw Error('Isolated API exited');try{const r=await request('/api/status');if(r.status===200&&r.data.database===true){ready=true;break}}catch{}await delay(200)}if(!ready)throw Error('Isolated API did not become ready');ok('disposable isolated server ready');
  for(const asset of ['/','/src/main.js','/src/restricted-workspace.js','/src/role-policy.js']){const response=await fetch(base+asset);assert.equal(response.status,200,'UI asset '+asset);const body=await response.text();assert.ok(body.length>50,'UI asset nonempty '+asset);}ok('all required restricted browser modules served');
  const forbidden=await fetch(base+'/src/role-migration.js');assert.equal(forbidden.status,404);ok('non-public source module remains blocked');
+ const preflight=await fetch(base+'/api/me');assert.equal(preflight.status,401);assert.equal(preflight.headers.get('cache-control'),'no-store');assert.equal(preflight.headers.get('x-content-type-options'),'nosniff');ok('unauthenticated API fails closed with no-store and nosniff');
+ const forged=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://attacker.invalid'},body:JSON.stringify({username:'nobody',password:'invalid'})});assert.equal(forged.status,403);ok('cross-origin login blocked');
+ const malformed=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:'{invalid'});assert.equal(malformed.status,400);ok('malformed JSON rejected');
  const cookies={};for(const role of Object.keys(users)){const r=await request('/api/login',{method:'POST',body:{username:users[role].username,password:pw}});assert.equal(r.status,200,role+' login');cookies[role]=r.cookie;}ok('all six role sessions authenticated');
+ const cookieProbe=await request('/api/login',{method:'POST',body:{username:users.manager.username,password:pw}});assert.equal(cookieProbe.status,200);const loginCookie=cookieProbe.setCookie;
+ assert.match(loginCookie,/HttpOnly/i);assert.match(loginCookie,/SameSite=Strict/i);assert.match(loginCookie,/Path=\/api/i);ok('session cookie security attributes set');
+ const logout=await request('/api/logout',{method:'POST',cookie:cookies.admin});assert.equal(logout.status,200);assert.equal((await request('/api/me',{cookie:cookies.admin})).status,401);ok('logout invalidates session token');
+ const adminLogin=await request('/api/login',{method:'POST',body:{username:users.admin.username,password:pw}});assert.equal(adminLogin.status,200);cookies.admin=adminLogin.cookie;
+
  for(const role of ['manager','supervisor','coordinator']){const r=await request('/api/operational/work-orders',{cookie:cookies[role]});assert.equal(r.status,200,role);assert.ok(Array.isArray(r.data.workOrders));assert.ok(!('people' in r.data));}ok('operational projection permits only intended roles');
  for(const role of ['finance_admin','technician'])assert.equal((await request('/api/operational/work-orders',{cookie:cookies[role]})).status,403);ok('operational projection denies finance and technician');
  for(const role of ['finance_admin','admin'])assert.equal((await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies[role]})).status,200);for(const role of ['manager','supervisor','coordinator','technician'])assert.equal((await request('/api/finance/summary?start=2026-11-01&end=2026-11-30',{cookie:cookies[role]})).status,403);ok('finance role separation');
