@@ -36,3 +36,9 @@ Finish Gate 25 **record-level and capability-delegation authorization** for `/ap
 - Admin and operational work-order-wide roles can view existing records; finance-only denied; technician limited to assets associated with own assigned work orders, with inspections linked by `assetId`.
 - Disposable MariaDB integration **80/80**; 50 access decisions; `/tmp/cmms-gate25-record-scope.log`; latest respective aggregate **201/201**.
 - Remaining policy: attachment visibility is **asset-level** (not individual work-order-level); global quotation delegation also remains subject to business sign-off. Gate 25 not finally signed off. Continue with Gate 26 TLS staging only after documenting these decisions; do not deploy to production.
+
+## Gate 26 staging work checkpoint — 2026-11-21
+- Gate 25 scoped media implementation committed as `5d3e3b2` and verified pushed; latest successful aggregate remains **201/201** across latest respective suites.
+- Gate 26 work-in-progress: optional `CMMS_ALLOWED_HOSTS` exact Host allowlist with HTTP 421 on unknown hosts, and a synthetic hostile-Host integration probe. Added `src/host-security.js` with three directly passing policy decisions.
+- **Important:** First attempted full integration with a forged Host header FAILED at check 5: expected HTTP 421, received HTTP 200. This is an unresolved test/environment or runtime discrepancy; do not count as a pass or claim Gate 26 complete. Test runner was terminated and temporary `.env` removed. A separate old `node tools/integration-rbac.mjs` process PID 439973 predates this work; do not kill unrelated user processes.
+- Next: isolate Host header handling with raw `http.request`, inspect server process/port conflicts and test setup; rerun guarded suite once resolved. Then configure/test actual TLS terminator on disposable loopback and verify cookie, Origin and Host behavior end-to-end. No live deployment.

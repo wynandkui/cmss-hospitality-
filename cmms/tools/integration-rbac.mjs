@@ -1,5 +1,6 @@
 // Disposable MariaDB integration test. NEVER target the production database.
 import fs from 'node:fs';
+import {request as httpRequest} from 'node:http';
 import {spawn} from 'node:child_process';
 import {randomBytes,randomUUID,scryptSync} from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -24,7 +25,7 @@ try{
  const pw=randomBytes(18).toString('hex');const salt=randomBytes(16).toString('hex');const hash=salt+':'+scryptSync(pw,salt,64).toString('hex');
  const users={};
  for(const role of ['admin','manager','supervisor','coordinator','finance_admin','technician']){const id=randomUUID(),username='it_'+role;users[role]={id,username};await db.execute('INSERT INTO cmms_users(id,username,password_hash,role,person_id,active) VALUES(?,?,?,?,?,1)',[id,username,hash,role,role==='technician'?'it_person':'']);}
- child=spawn(process.execPath,['server/api.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,...env,DB_NAME:TEMP,CMMS_PORT:'3097',CMMS_BIND:'127.0.0.1',CMMS_MEDIA_DIR:'/tmp/cmms-rbac-it-media-'+TEMP},stdio:'ignore'});
+ child=spawn(process.execPath,['server/api.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,...env,DB_NAME:TEMP,CMMS_PORT:'3097',CMMS_BIND:'127.0.0.1',CMMS_MEDIA_DIR:'/tmp/cmms-rbac-it-media-'+TEMP,CMMS_ALLOWED_HOSTS:'127.0.0.1:3097'},stdio:'ignore'});
  let ready=false;for(let i=0;i<60;i++){if(child.exitCode!==null)throw Error('Isolated API exited');try{const r=await request('/api/status');if(r.status===200&&r.data.database===true){ready=true;break}}catch{}await delay(200)}if(!ready)throw Error('Isolated API did not become ready');ok('disposable isolated server ready');
  for(const asset of ['/','/src/main.js','/src/restricted-workspace.js','/src/role-policy.js']){const response=await fetch(base+asset);assert.equal(response.status,200,'UI asset '+asset);const body=await response.text();assert.ok(body.length>50,'UI asset nonempty '+asset);}ok('all required restricted browser modules served');
  const forbidden=await fetch(base+'/src/role-migration.js');assert.equal(forbidden.status,404);ok('non-public source module remains blocked');
@@ -33,6 +34,7 @@ try{
  const spoofedProto=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://127.0.0.1:3097','X-Forwarded-Proto':'https'},body:JSON.stringify({username:'nobody',password:'invalid'})});
  assert.equal(spoofedProto.status,403,'untrusted forwarded scheme must not bypass same-origin validation');
  ok('spoofed X-Forwarded-Proto cannot override configured origin scheme');
+ const forgedHostStatus=await new Promise((resolve,reject)=>{const probe=httpRequest(base+'/api/status',{headers:{Host:'attacker.invalid'}},response=>{response.resume();resolve(response.statusCode)});probe.on('error',reject);probe.end();});assert.equal(forgedHostStatus,421,'unrecognized Host denied');ok('untrusted Host rejected by explicit staging allowlist');
  const forged=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://attacker.invalid'},body:JSON.stringify({username:'nobody',password:'invalid'})});assert.equal(forged.status,403);ok('cross-origin login blocked');
  const malformed=await fetch(base+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:'{invalid'});assert.equal(malformed.status,400);ok('malformed JSON rejected');
  const cookies={};for(const role of Object.keys(users)){const r=await request('/api/login',{method:'POST',body:{username:users[role].username,password:pw}});assert.equal(r.status,200,role+' login');cookies[role]=r.cookie;}ok('all six role sessions authenticated');
@@ -532,7 +534,7 @@ try{
  ok('actual isolated API SIGKILL after attachment write leaves detectable uncommitted orphan');
  // Gate 26: restart disposable API in explicitly configured TLS-terminator mode.
  // Transport remains loopback HTTP here; this tests application cookie/origin behavior only.
- child=spawn(process.execPath,['server/api.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,...env,DB_NAME:TEMP,CMMS_PORT:'3097',CMMS_BIND:'127.0.0.1',CMMS_MEDIA_DIR:'/tmp/cmms-rbac-it-media-'+TEMP,CMMS_HTTPS:'true'},stdio:'ignore'});
+ child=spawn(process.execPath,['server/api.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,...env,DB_NAME:TEMP,CMMS_PORT:'3097',CMMS_BIND:'127.0.0.1',CMMS_MEDIA_DIR:'/tmp/cmms-rbac-it-media-'+TEMP,CMMS_HTTPS:'true',CMMS_ALLOWED_HOSTS:'127.0.0.1:3097'},stdio:'ignore'});
  let tlsModeReady=false;for(let i=0;i<60;i++){if(child.exitCode!==null)throw Error('TLS-mode API exited');try{const r=await request('/api/status');if(r.status===200&&r.data.database===true){tlsModeReady=true;break}}catch{}await delay(200)}assert.ok(tlsModeReady,'TLS-terminator mode API ready');
  const tlsLogin=await fetch(base+'/api/login',{method:'POST',headers:{Origin:'https://127.0.0.1:3097','Content-Type':'application/json'},body:JSON.stringify({username:users.admin.username,password:pw})});
  assert.equal(tlsLogin.status,200,'configured HTTPS origin accepted');
