@@ -20,6 +20,11 @@ try{
  const [sourceTables]=await root.query('SHOW FULL TABLES FROM `'+SOURCE+'`');const tables=sourceTables.filter(r=>Object.values(r)[1]==='BASE TABLE').map(r=>Object.values(r)[0]);assert.ok(tables.length>0);for(const t of tables)assert.match(t,/^[a-zA-Z0-9_]+$/);
  const source=await mysql.createConnection({...opts,database:SOURCE});const baseline={};for(const t of tables){const [rows]=await source.query('SELECT * FROM `'+t+'`');baseline[t]={count:rows.length,sha256:digest(rows)}}await source.end();pass('source test database baseline captured without modification');
  await command('mariadb-dump',['--single-transaction','--quick','--skip-lock-tables','--skip-add-drop-table','--no-tablespaces',...connArgs,SOURCE],{output:dump});const bytes=statSync(dump).size;assert.ok(bytes>100);const checksum=createHash('sha256').update(readFileSync(dump)).digest('hex');pass('consistent SQL dump created and SHA-256 recorded');
+ // Gate 27: a changed backup must fail the recorded SHA-256 integrity check before import.
+ const tampered=Buffer.from(readFileSync(dump));tampered[tampered.length-1]^=1;
+ assert.notEqual(createHash('sha256').update(tampered).digest('hex'),checksum,'altered backup rejected by checksum');
+ assert.equal(createHash('sha256').update(readFileSync(dump)).digest('hex'),checksum,'actual backup still matches recorded checksum');
+ pass('SHA-256 detects modified backup before restore');
  await root.query('CREATE DATABASE `'+TARGET+'`');created=true;
  await command('mariadb',[...connArgs,TARGET],{input:dump});pass('SQL dump restored to uniquely named disposable database');
  const restored=await mysql.createConnection({...opts,database:TARGET});const [targetTables]=await restored.query('SHOW FULL TABLES');const names=targetTables.filter(r=>Object.values(r)[1]==='BASE TABLE').map(r=>Object.values(r)[0]);assert.deepEqual(names.slice().sort(),tables.slice().sort());pass('restored table inventory matches source');
