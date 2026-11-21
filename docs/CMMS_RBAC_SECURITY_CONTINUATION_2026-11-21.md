@@ -37,3 +37,11 @@ Source review established that `/api/users` PATCH invalidates affected sessions 
 Added two narrowly scoped source-level regression checks in `cmms/tests/session-invalidation-source.test.js`. Observed: **2 passed, 0 failed**; `node --check cmms/server/api.js` succeeded. These are structural checks, **not** live API integration tests; they do not establish revocation under concurrent requests or verify database rollback behavior. A disposable database-backed negative/session suite is still required before release approval.
 
 No production database was accessed. Existing `.gitignore` remains untracked and untouched.
+
+## Security gate 2 — live disposable integration
+
+Date: 2026-11-21 SAST. Added three live assertions to `cmms/tools/integration-rbac.mjs`, after existing browser tests: (1) technician deactivation revokes prior session and blocks fresh login, (2) administrator password change revokes existing admin session, and (3) manager attempting a technician permission update receives HTTP 403 with unchanged database permissions. These use the cloned, randomly named disposable database on the isolated MariaDB container only.
+
+Initial execution reached 56 checks but failed on a test-fixture conflict (HTTP 409) when trying to edit the fixture technician already linked to an existing employee. This was a test setup mistake, not evidence of a product defect. Corrected the password-revocation case to change the disposable administrator's own password. The subsequent execution reported **INTEGRATION PASS 58/58**, including all three new checks, and **Disposable test database removed**. Logs are local at `/tmp/cmms-security-gate-20261121.log` (failed attempt) and `/tmp/cmms-security-gate-20261121-r2.log` (passing run); do not commit raw logs or credentials.
+
+Remaining coverage: live `/api/users/separate` employee-scope revocation, concurrent in-flight request races, and independent authorization matrix review. Passing 58/58 is not production certification.

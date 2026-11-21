@@ -141,5 +141,26 @@ try{
  ok('Chromium finance form posts persisted maintenance cost');
  ws.close();
  const [[finalRecord]]=await db.query('SELECT revision FROM cmms_state WHERE id=1');assert.equal(Number(finalRecord.revision),Number(costPosted.data.revision)+1);ok('rejected writes do not advance revision beyond authorized browser changes');
+ // Live revocation checks run only after all existing browser and workflow assertions.
+ const techId=users.technician.id;
+ const revoke=await request('/api/users/status',{method:'POST',cookie:cookies.admin,body:{id:techId,active:false}});
+ assert.equal(revoke.status,200,'admin disables technician');
+ assert.equal((await request('/api/me',{cookie:cookies.technician})).status,401,'disabled account old token revoked');
+ assert.equal((await request('/api/login',{method:'POST',body:{username:users.technician.username,password:pw}})).status,401,'disabled account cannot log in');
+ ok('deactivation revokes session and blocks login');
+ assert.equal((await request('/api/users/status',{method:'POST',cookie:cookies.admin,body:{id:techId,active:true}})).status,200);
+ const reenabled=await request('/api/login',{method:'POST',body:{username:users.technician.username,password:pw}});
+ assert.equal(reenabled.status,200,'reenabled technician login');
+ const changed=await request('/api/users',{method:'PATCH',cookie:cookies.admin,body:{id:users.admin.id,username:users.admin.username,role:'admin',personId:'',password:randomBytes(18).toString('hex')}});
+ assert.equal(changed.status,200,'admin changes own password');
+ assert.equal((await request('/api/me',{cookie:cookies.admin})).status,401,'password change revokes old session');
+ ok('password change revokes authenticated session');
+ const [[beforePermission]]=await db.execute('SELECT permissions FROM cmms_users WHERE id=?',[techId]);
+ const freshLogin=await request('/api/login',{method:'POST',body:{username:users.manager.username,password:pw}});
+ assert.equal(freshLogin.status,200);
+ assert.equal((await request('/api/permissions',{method:'PATCH',cookie:freshLogin.cookie,body:{id:techId,permissions:{}}})).status,403,'manager cannot edit technician permissions');
+ const [[afterPermission]]=await db.execute('SELECT permissions FROM cmms_users WHERE id=?',[techId]);
+ assert.equal(afterPermission.permissions,beforePermission.permissions,'forbidden permission update left DB unchanged');
+ ok('non-admin permission escalation rejected without database mutation');
  await db.end();console.log('INTEGRATION PASS '+passes+'/'+passes);
 }catch(e){console.error('INTEGRATION FAIL after '+passes+' checks: '+e.message);process.exitCode=1}finally{if(chrome){chrome.kill('SIGTERM')}if(child){child.kill('SIGTERM');await delay(300);if(child.exitCode===null)child.kill('SIGKILL')}if(created)await conn.query('DROP DATABASE `'+TEMP+'`');await conn.end();console.log('Disposable test database removed')}
